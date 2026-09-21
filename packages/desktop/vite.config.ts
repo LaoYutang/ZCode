@@ -8,6 +8,7 @@ import { resolveZCodeEndpointOrigin, pickProductEndpointEnv } from "@zcode/share
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { resolveDesktopProductFlavor } from "./scripts/desktop-product-identity.mjs";
+import { resolveDesktopUpdateSource } from "./scripts/desktop-update-source.mjs";
 
 const buildMetadata = getBuildMetadata();
 const desktopRequire = createRequire(import.meta.url);
@@ -146,11 +147,14 @@ export default defineConfig(({ mode }) => {
   const repoRoot = resolve(__dirname, "../..");
   const zcodeEnv = resolveZCodeEnv(env.ZCODE_ENV);
   // 安装包身份与后端环境分轴；renderer 用它决定是否展示更新入口。
-  const zcodeProductFlavor = resolveDesktopProductFlavor({
+  const rendererBuildEnv = {
     ...process.env,
     ...env,
     ZCODE_ENV: zcodeEnv,
-  });
+  };
+  const zcodeProductFlavor = resolveDesktopProductFlavor(rendererBuildEnv);
+  // 更新入口跟随更新源而不是身份：换用自己的 GitHub Release 时同样要显示入口。
+  const updateSource = resolveDesktopUpdateSource(rendererBuildEnv);
   const e2eCoverageEnabled =
     env.ZCODE_E2E_COVERAGE === "1" || process.env.ZCODE_E2E_COVERAGE === "1";
   const e2eStoreBridgeEnabled =
@@ -194,6 +198,9 @@ export default defineConfig(({ mode }) => {
       __ZCODE_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
       __ZCODE_ENV__: JSON.stringify(zcodeEnv),
       __ZCODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
+      // 与 main 用同一份更新源判定，见 specs/update/desktop-auto-update-source.md。
+      __ZCODE_UPDATE_SOURCE__: JSON.stringify(updateSource.kind),
+      __ZCODE_UPDATE_SOURCE_REPOSITORY__: JSON.stringify(updateSource.repository ?? ""),
       __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__: JSON.stringify(mode !== "production"),
       "import.meta.env.VITE_ZCODE_BASE_URL": JSON.stringify(zcodeEndpointOrigin),
       // 兼容旧 renderer 读取名；新代码统一读 VITE_ZCODE_BASE_URL。

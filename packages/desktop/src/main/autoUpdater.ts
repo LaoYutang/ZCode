@@ -6,6 +6,8 @@ import {
   desktopMenuMessageIds,
   formatDesktopMenuMessage,
   getDesktopMenuMessage,
+  isExternalUpdateInstallSource,
+  parseUpdateSourceRepository,
   PlatformChannels,
   resolveRuntimeZCodeEndpointOrigin,
   ZCODE_VERSION,
@@ -15,9 +17,10 @@ import {
   type UpdateCheckResultPayload,
   type UpdateStatePayload,
 } from "@zcode/shared";
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, shell } from "electron";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
+import { buildGitHubReleasePageUrl, fetchLatestGitHubRelease } from "./githubReleaseNotes.js";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
 const { autoUpdater } = pkg;
@@ -44,6 +47,8 @@ let activeAutoUpdateCheckId: number | null = null;
 let activeAutoUpdateCheckChannel: ElectronReleaseChannel | null = null;
 let settlingAutoUpdateCheckId: number | null = null;
 let availableUpdateReleaseNotes: PostUpdateReleaseNotesPayload | null = null;
+/** `github-release` 模式下“前往下载”的目标；失败或未取到时回退 releases/latest。 */
+let availableUpdateReleaseUrl: string | null = null;
 let availableUpdateChannel: ElectronReleaseChannel = "stable";
 let downloadingUpdateVersion: string | null = null;
 let downloadingUpdateReleaseNotes: PostUpdateReleaseNotesPayload | null = null;
@@ -74,6 +79,8 @@ type UpdateDownloadedInfoLike = {
   files?: Array<{ url?: string | null } | null> | null;
   packages?: Record<string, { path?: string | null } | null> | null;
   zcodeReleaseChannel?: ElectronReleaseChannel | null;
+  /** 仅 GitHub provider 提供：本次命中的 release tag，用于拼 Release 页面地址。 */
+  tag?: string | null;
   releaseName?: string | null;
   releaseNotes?: string | ReleaseNoteInfoLike[] | null;
   releaseDate?: string | Date | null;
@@ -393,6 +400,16 @@ function buildDownloadProgressState(
 }
 
 async function quitAndInstallUpdate(rejectUnavailable = false) {
+  if (isExternalUpdateInstallSource()) {
+    // 外部下载模式永远不会进入 ready，安装由用户从 Release 页面完成。
+    // renderer 可能因旧状态缓存而请求安装，这里必须显式拒绝，否则按钮会永久 pending。
+    logger.warn("[auto-update] ignore quitAndInstall request: external download source");
+    if (rejectUnavailable) {
+      throw new Error("Update is not installable: downloads are handled on the release page");
+    }
+    return;
+  }
+
   if (
     menuState.kind === "update-downloaded" &&
     readyUpdateVersion &&
@@ -717,6 +734,11 @@ export function resolveUpdateFeedSourceFromStartupConfig(
 async function resolveUpdateReleaseChannel(
   settingService: SettingServiceLike | undefined,
 ): Promise<ElectronReleaseChannel> {
+  // GitHub Release 只有正式发布一条通道，preview 设置在该模式下无意义（UI 也不再暴露该开关）。
+  if (isExternalUpdateInstallSource()) {
+    return "stable";
+  }
+
   if (!settingService) {
     return "stable";
   }
@@ -749,6 +771,37 @@ async function syncAutoUpdateCheckChannelFromSettings(
   // 如果 begin 阶段仍用默认 stable 作为 expected channel，冷启动 preview 结果会被误判为 stale。
   availableUpdateChannel = nextChannel;
   activeAutoUpdateCheckChannel = nextChannel;
+}
+
+/**
+ * `github-release` 源：用 electron-updater 原生 github provider 做**版本检测**。
+ * 它只读 Release 资产里的 latest*.yml，不触发 resolveFiles/下载链路，
+ * 因此检测不受本地产物形态影响（见 specs/update/desktop-auto-update-source.md）。
+ */
+function applyGitHubReleaseProvider(repository: { owner: string; repo: string }): void {
+  autoUpdater.setFeedURL({
+    provider: "github",
+    owner: repository.owner,
+    repo: repository.repo,
+    // 只认正式发布：draft / prerelease 不是给客户端升级用的。
+    releaseType: "release",
+    // 不传 useMultipleRangeRequest：GitHub 分支不接受该字段，
+    // provider 内部（BaseGitHubProvider）已强制关闭多 Range 请求。
+  });
+  logger.info(
+    `[auto-update] github release provider applied owner=${repository.owner} repo=${repository.repo}`,
+  );
+}
+
+/** 更新源分派：自己的 GitHub Release 只检测与提示，官方源保持既有 manifest provider。 */
+function applyUpdateProvider(options: InitAutoUpdaterOptions): void {
+  const repository = parseUpdateSourceRepository();
+  if (isExternalUpdateInstallSource() && repository) {
+    applyGitHubReleaseProvider(repository);
+    return;
+  }
+
+  applyManifestUpdateProvider(options);
 }
 
 function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
@@ -821,6 +874,49 @@ function toPostUpdateReleaseNotesPayload(
     ...(releaseDate ? { releaseDate } : {}),
     ...(releaseNotesByLocale ? { releaseNotesByLocale } : {}),
   };
+}
+
+/**
+ * `github-release` 模式下用 REST 的 Release 正文覆盖 provider 的说明，并记下 Release 页面地址。
+ *
+ * provider 的说明取自 releases.atom 的 `<content>`，无法保证是作者写入的原始 markdown；
+ * REST 的 `body` 一定是。取不到时保留 provider 的说明——只有文案降级，检测结果不受影响。
+ */
+async function resolveGitHubAvailableUpdateReleaseNotes(
+  info: UpdateDownloadedInfoLike,
+): Promise<PostUpdateReleaseNotesPayload | null> {
+  const providerNotes = toPostUpdateReleaseNotesPayload(info);
+  const repository = parseUpdateSourceRepository();
+  if (!repository) {
+    return providerNotes;
+  }
+
+  const details = await fetchLatestGitHubRelease(repository);
+  // info.tag 来自本次命中的 release，比 REST 的 latest 更贴近检测结果；两者都缺才回退 releases/latest。
+  availableUpdateReleaseUrl = info.tag?.trim()
+    ? buildGitHubReleasePageUrl(repository.owner, repository.repo, info.tag)
+    : (details?.htmlUrl ?? buildGitHubReleasePageUrl(repository.owner, repository.repo));
+
+  if (!details?.notes || details.version !== info.version) {
+    return providerNotes;
+  }
+
+  return {
+    version: info.version,
+    title: details.tag,
+    markdown: details.notes,
+  };
+}
+
+/** 说明来源随更新源切换：只有 `github-release` 需要额外请求 Release 详情。 */
+async function resolveAvailableUpdateReleaseNotes(
+  info: UpdateDownloadedInfoLike,
+): Promise<PostUpdateReleaseNotesPayload | null> {
+  if (!isExternalUpdateInstallSource()) {
+    return toPostUpdateReleaseNotesPayload(info);
+  }
+
+  return resolveGitHubAvailableUpdateReleaseNotes(info);
 }
 
 async function persistPendingPostUpdateReleaseNotes(
@@ -918,6 +1014,7 @@ function sendManualCheckResult(payload: UpdateCheckResultPayload) {
 
 function clearAvailableUpdateState() {
   availableUpdateReleaseNotes = null;
+  availableUpdateReleaseUrl = null;
 }
 
 function clearDownloadingUpdateState() {
@@ -984,8 +1081,58 @@ function shouldIgnoreCancelledDownloadError(error: unknown): boolean {
   return true;
 }
 
+/** electron-updater 抛的错误对用户是无意义的堆栈，这里映射成可读提示。 */
+function toUserFacingUpdateErrorMessage(error: unknown): string {
+  const code = isRecord(error) ? error["code"] : undefined;
+  if (code === "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND") {
+    return menuLocale === "zh-CN"
+      ? "暂无法检查更新：发布产物缺少更新描述文件（latest.yml）。"
+      : "Unable to check for updates: the release is missing its update manifest (latest.yml).";
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * GitHub Release 源下「仓库还没有任何正式发布」是正常状态而不是失败：
+ * provider 在 releases/latest 取不到 tag 时会抛这两个 code。
+ * 继续走错误路径会让每次启动和每小时轮询都刷一条 error 日志。
+ */
+function isNoPublishedReleaseError(error: unknown): boolean {
+  if (!isExternalUpdateInstallSource() || !isRecord(error)) {
+    return false;
+  }
+
+  const code = error["code"];
+  return (
+    code === "ERR_UPDATER_LATEST_VERSION_NOT_FOUND" || code === "ERR_UPDATER_NO_PUBLISHED_VERSIONS"
+  );
+}
+
+/** 把「没有可用的正式发布」收敛成 up-to-date。返回 true 表示错误已被处理。 */
+function settleNoPublishedRelease(error: unknown, source: string): boolean {
+  if (!isNoPublishedReleaseError(error)) {
+    return false;
+  }
+
+  logger.info(`[auto-update] ${source}: repository has no published release yet`);
+  clearAvailableUpdateState();
+  clearDownloadingUpdateState();
+  setAutoUpdaterMenuState(
+    readyUpdateVersion
+      ? buildUpdateDownloadedState(readyUpdateVersion)
+      : { kind: "idle", enabled: true },
+  );
+  notifyForceAutoUpdate({ kind: "error", message: getForceAutoUpdateNoUpdateMessage() });
+  sendManualCheckResult({
+    kind: "up-to-date",
+    currentVersion: getCurrentAppVersionForUpdate(),
+  });
+  return true;
+}
+
 function handleAutoUpdateFailure(error: unknown, source: string) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = toUserFacingUpdateErrorMessage(error);
   const failedDownload =
     menuState.kind === "download-progress"
       ? {
@@ -1080,6 +1227,11 @@ async function isSkippedUpdateVersion(
 async function shouldAutoDownloadAndInstallUpdates(
   settingService: SettingServiceLike | undefined,
 ): Promise<boolean> {
+  // 外部下载模式没有可自动完成的安装：下载与安装都由用户从 Release 页面自行完成。
+  if (isExternalUpdateInstallSource()) {
+    return false;
+  }
+
   if (!settingService) {
     return false;
   }
@@ -1182,7 +1334,42 @@ async function clearSkippedUpdateVersionForManualCheck(
   }
 }
 
+/**
+ * `github-release` 模式的主更新动作：打开 Release 页面，并**保持 `update-available` 状态**
+ * （用户可能反复回来看，入口不应因为点过一次就消失）。
+ * 返回 true 表示动作已由外部下载模式接管，调用方不再进入下载流程。
+ */
+function openAvailableUpdateReleasePage(reason: string): boolean {
+  if (!isExternalUpdateInstallSource()) {
+    return false;
+  }
+
+  if (menuState.kind !== "update-available") {
+    logger.info(`[auto-update] skip ${reason} open release page: state=${menuState.kind}`);
+    return true;
+  }
+
+  const repository = parseUpdateSourceRepository();
+  const url =
+    availableUpdateReleaseUrl ??
+    (repository ? buildGitHubReleasePageUrl(repository.owner, repository.repo) : null);
+  if (!url) {
+    logger.warn(`[auto-update] ${reason}: release page url unavailable`);
+    return true;
+  }
+
+  logger.info(`[auto-update] ${reason}: open release page ${url}`);
+  void shell.openExternal(url).catch((error) => {
+    logger.warn("[auto-update] open release page failed:", error);
+  });
+  return true;
+}
+
 function downloadAvailableUpdate(reason = "renderer") {
+  if (openAvailableUpdateReleasePage(reason)) {
+    return;
+  }
+
   if (!canUseAutoUpdaterInCurrentRuntime()) {
     logger.info(`[auto-update] skip ${reason} download: not packaged`);
     return;
@@ -1360,6 +1547,18 @@ export function refreshAutoUpdaterReleaseChannel(
     return;
   }
 
+  if (autoUpdaterDisabledForProductFlavor) {
+    // 本 flavor 从未 setFeedURL，这里继续发起 checkForUpdates 会对未配置的实例发请求。
+    logger.info(`[auto-update] skip ${reason}: updater disabled for this product flavor`);
+    return;
+  }
+
+  // GitHub Release 只有正式发布一条通道，preview 开关在该模式下不改变任何东西。
+  if (isExternalUpdateInstallSource()) {
+    logger.info(`[auto-update] skip ${reason}: github release source has a single channel`);
+    return;
+  }
+
   if (menuState.kind === "download-progress" || menuState.kind === "update-downloaded") {
     logger.info(`[auto-update] skip ${reason}: state=${menuState.kind} channel=${nextChannel}`);
     return;
@@ -1504,7 +1703,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   // 这里仅在 Windows 关闭“退出即自动安装”，要求用户显式点更新；其他平台保持原有行为，避免改动既有升级链路。
   autoUpdater.autoInstallOnAppQuit = process.platform !== "win32";
   autoUpdater.logger = logger;
-  applyManifestUpdateProvider(options);
+  applyUpdateProvider(options);
 
   const triggerCheckForUpdates = (reason: string) => {
     if (checkForUpdatesInFlight) {
@@ -1531,6 +1730,9 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
 
     checkForUpdatesPromise
       .catch((err) => {
+        if (settleNoPublishedRelease(err, reason)) {
+          return;
+        }
         // 强更弹窗可能复用启动期后台检查；如果 checkForUpdates 直接 reject 且没有后续 error 事件，
         // 只写日志会让弹窗停在 checking。这里复用失败收敛逻辑，把状态恢复并反馈给强更监听。
         handleAutoUpdateFailure(err, `${reason} check failed`);
@@ -1582,7 +1784,7 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
         return;
       }
 
-      availableUpdateReleaseNotes = toPostUpdateReleaseNotesPayload(info);
+      availableUpdateReleaseNotes = await resolveAvailableUpdateReleaseNotes(info);
       if (readyUpdateRestoredFromPendingReleaseNotes) {
         // pendingPostUpdateReleaseNotes 只能证明“曾经下载完成并持久化了版本说明”，
         // 不能恢复当前进程里的 electron-updater downloadedUpdateHelper、Squirrel.Mac proxy server
@@ -1725,6 +1927,16 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
       return;
     }
 
+    if (isNoPublishedReleaseError(err)) {
+      // electron-updater 在 provider 抛错时**先 emit error 再 reject**，因此这里必须先于
+      // 通用失败路径收敛“还没有正式发布”，否则每次启动与每小时轮询都会刷一条 error 日志
+      // 和一条错误提示。上层 check 的 catch 会再收敛一次，状态写入是幂等的。
+      void settleAutoUpdateCheckResult("no published release", () => {
+        settleNoPublishedRelease(err, "error");
+      });
+      return;
+    }
+
     void settleAutoUpdateCheckResult("error", () => {
       handleAutoUpdateFailure(err, "error");
     });
@@ -1814,7 +2026,10 @@ export function requestForceAutoUpdate(
   autoUpdater
     .checkForUpdates()
     .catch((err) => {
-      const message = err instanceof Error ? err.message : String(err);
+      if (settleNoPublishedRelease(err, reason)) {
+        return;
+      }
+      const message = toUserFacingUpdateErrorMessage(err);
       logger.error(`[auto-update] ${reason} check failed:`, err);
       setAutoUpdaterMenuState(
         readyUpdateVersion
@@ -1912,10 +2127,13 @@ export function checkForUpdateMenuClick(originWindow?: BrowserWindow | null) {
     await autoUpdater.checkForUpdates();
   })()
     .catch((err) => {
+      if (settleNoPublishedRelease(err, "manual check")) {
+        return;
+      }
       logger.error("[auto-update] manual check failed:", err);
       sendManualCheckResult({
         kind: "error",
-        message: err instanceof Error ? err.message : String(err),
+        message: toUserFacingUpdateErrorMessage(err),
       });
     })
     .finally(() => {

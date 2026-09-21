@@ -30,7 +30,7 @@ export type { WorkspacePurpose } from "./workspacePurpose.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
 export { ZCODE_VERSION, ZCODE_COMMIT, ZCODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
-export type { ArmsRumEnv, ZCodeEnv, ZCodeProductFlavor } from "./env.js";
+export type { ArmsRumEnv, ZCodeEnv, ZCodeProductFlavor, ZCodeUpdateSource } from "./env.js";
 export type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 export type {
   RemoteResourcePackageId,
@@ -62,15 +62,22 @@ export {
 export {
   ZCODE_ENV,
   ZCODE_PRODUCT_FLAVOR,
+  ZCODE_UPDATE_SOURCE,
+  ZCODE_UPDATE_SOURCE_REPOSITORY,
   ZCODE_APP_VERSION_ENV,
   ZCODE_BUILD_COMMIT_ID_ENV,
   RUNTIME_ZCODE_DEBUG,
   ZCODE_TELEMETRY_REPORT_ENDPOINT,
   ZCODE_ARMS_RUM_ENDPOINT,
   ZCODE_TELEMETRY_ENABLED,
+  isAutoUpdateEnabledForUpdateSource,
+  isExternalUpdateInstallSource,
   mapZCodeEnvToArmsRumEnv,
   normalizeZCodeEnv,
   normalizeZCodeProductFlavor,
+  normalizeZCodeUpdateSource,
+  parseUpdateSourceRepository,
+  usesOfficialUpdateSource,
 } from "./env.js";
 export * from "./errors.js";
 export type { SessionCreateSource } from "./sessionCreateSource.js";

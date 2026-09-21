@@ -12,7 +12,7 @@ import {
   type Locale,
   resolveRuntimeZCodeEndpointOrigin,
   ZCODE_ENV,
-  ZCODE_PRODUCT_FLAVOR,
+  isAutoUpdateEnabledForUpdateSource,
   buildZCodeEndpointUrls,
   getCommunityUrlFromConfigs,
   getFeedbackUrlFromConfig,
@@ -589,11 +589,11 @@ export async function executeDesktopCommand(options: {
       );
       return;
     case DesktopCommandIds.CheckForUpdates:
-      // 按产品身份而不是后端环境放行：生产后端的 Preview 同样没有更新器。
-      if (ZCODE_PRODUCT_FLAVOR === "production") {
+      // 按更新源而不是产品身份放行：换用自己的 GitHub Release 时同样允许检查更新。
+      if (isAutoUpdateEnabledForUpdateSource()) {
         checkForUpdateMenuClick(targetWindow);
       } else {
-        options.logger.info("[auto-update] Preview 已禁用手动更新检查");
+        options.logger.info("[auto-update] 该构建未启用更新器，忽略手动更新检查");
       }
       return;
     case DesktopCommandIds.RelaunchApp:

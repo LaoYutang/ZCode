@@ -37,6 +37,86 @@ export const ZCODE_PRODUCT_FLAVOR = normalizeZCodeProductFlavor(
   typeof __ZCODE_PRODUCT_FLAVOR__ !== "undefined" ? __ZCODE_PRODUCT_FLAVOR__ : undefined,
   ZCODE_ENV,
 );
+
+/**
+ * 自动更新源。与产品身份解耦：配了自己的 GitHub Release 时用 `github-release`，
+ * 否则沿用官方 manifest（production）或禁用（preview）。
+ * 主进程与渲染端都从它派生，避免两处各自判断 flavor。
+ */
+export type ZCodeUpdateSource = "disabled" | "zcode-manifest" | "github-release";
+
+declare const __ZCODE_UPDATE_SOURCE__: string;
+declare const __ZCODE_UPDATE_SOURCE_REPOSITORY__: string;
+
+/** 未注入 define 的 bundle（web、CLI、测试）沿用改造前的语义：只有 production 身份启用官方更新源。 */
+export function normalizeZCodeUpdateSource(
+  value: string | undefined,
+  flavor: ZCodeProductFlavor,
+): ZCodeUpdateSource {
+  const normalized = value?.trim().toLowerCase();
+  if (
+    normalized === "disabled" ||
+    normalized === "zcode-manifest" ||
+    normalized === "github-release"
+  ) {
+    return normalized;
+  }
+
+  return flavor === "production" ? "zcode-manifest" : "disabled";
+}
+
+export const ZCODE_UPDATE_SOURCE: ZCodeUpdateSource = normalizeZCodeUpdateSource(
+  typeof __ZCODE_UPDATE_SOURCE__ !== "undefined" ? __ZCODE_UPDATE_SOURCE__ : undefined,
+  ZCODE_PRODUCT_FLAVOR,
+);
+
+/** 更新源仓库 `owner/repo`；仅 `github-release` 源下非空。 */
+export const ZCODE_UPDATE_SOURCE_REPOSITORY: string =
+  typeof __ZCODE_UPDATE_SOURCE_REPOSITORY__ !== "undefined"
+    ? __ZCODE_UPDATE_SOURCE_REPOSITORY__.trim()
+    : "";
+
+/** 是否启用自动更新链路。`disabled` 时主进程不初始化 updater，渲染端不显示更新入口。 */
+export function isAutoUpdateEnabledForUpdateSource(
+  source: ZCodeUpdateSource = ZCODE_UPDATE_SOURCE,
+): boolean {
+  return source !== "disabled";
+}
+
+/** 自己的 GitHub Release：只检测与提示，下载安装交给浏览器。 */
+export function isExternalUpdateInstallSource(
+  source: ZCodeUpdateSource = ZCODE_UPDATE_SOURCE,
+): boolean {
+  return source === "github-release";
+}
+
+/**
+ * 是否仍从官方 manifest 取更新。远端强更闸只在官方源下生效：
+ * 不接官方更新源的构建，官方不应有权阻止其启动。
+ */
+export function usesOfficialUpdateSource(
+  source: ZCodeUpdateSource = ZCODE_UPDATE_SOURCE,
+): boolean {
+  return source === "zcode-manifest";
+}
+
+/** 解析 `owner/repo`。格式非法或缺失时返回 null。 */
+export function parseUpdateSourceRepository(
+  repository: string = ZCODE_UPDATE_SOURCE_REPOSITORY,
+): { owner: string; repo: string } | null {
+  const segments = repository.split("/");
+  if (segments.length !== 2) {
+    return null;
+  }
+
+  const owner = segments[0]?.trim();
+  const repo = segments[1]?.trim();
+  if (!owner || !repo) {
+    return null;
+  }
+
+  return { owner, repo };
+}
 export const ZCODE_APP_VERSION_ENV = "ZCODE_APP_VERSION" as const;
 export const ZCODE_BUILD_COMMIT_ID_ENV = "ZCODE_BUILD_COMMIT_ID" as const;
 

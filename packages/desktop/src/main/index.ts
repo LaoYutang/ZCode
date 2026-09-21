@@ -77,6 +77,8 @@ import {
   buildZCodeEndpointUrls,
   resolveZCodeEndpointOrigin,
   shouldEnableE2ETestBridge,
+  isAutoUpdateEnabledForUpdateSource,
+  usesOfficialUpdateSource,
   type UpdateStatePayload,
   type TelemetryEventPayload,
   HostMessageTypes,
@@ -1940,10 +1942,9 @@ app.whenReady().then(async () => {
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
-  // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 ZCode 安装包，
-  // 不向 Preview 渠道提供更新。
+  // 是否启用跟随更新源而不是产品身份：换用自己的 GitHub Release 时，即使是 Preview 身份也要显示更新入口。
   void initAutoUpdater({
-    enabled: ZCODE_PRODUCT_FLAVOR === "production",
+    enabled: isAutoUpdateEnabledForUpdateSource(),
     onBeforeQuitAndInstall: async () => {
       notifyStabilityLifecycle("update_install");
       await prepareAppQuit("auto-update quitAndInstall", "update-install");
@@ -2184,20 +2185,22 @@ app.whenReady().then(async () => {
   // 分支不 bump 版本），会被 release minimalVersion 误判为"需强制升级"而启动秒退。force-update
   // 是面向打包发布客户端的安全门，对未打包 dev 运行时无意义。打包版 app.isPackaged === true，
   // gate 照常生效，对真实用户零影响。
+  // 另：不接官方更新源的构建（自建 GitHub Release）也必须跳过——官方不应有权阻止其启动。
   const skipForceUpdateForLocalDevRuntime = !app.isPackaged;
-  const forceUpdateGuardResult =
-    ZCODE_PRODUCT_FLAVOR === "production" && !skipForceUpdateForLocalDevRuntime
-      ? await maybeBlockStartupForForceUpdate({
-          locale: currentApplicationLocale,
-          logger,
-          endpointOrigin: await resolveCurrentZCodeEndpointOrigin(),
-          onBlocked: () => {
-            forceUpdateMainWindowCreationBlocked = true;
-          },
-        })
-      : { blocked: false };
-  if (ZCODE_PRODUCT_FLAVOR !== "production") {
-    logger.info("[force-update] Preview 跳过远端强制升级检查");
+  const officialForceUpdateEnabled =
+    usesOfficialUpdateSource() && !skipForceUpdateForLocalDevRuntime;
+  const forceUpdateGuardResult = officialForceUpdateEnabled
+    ? await maybeBlockStartupForForceUpdate({
+        locale: currentApplicationLocale,
+        logger,
+        endpointOrigin: await resolveCurrentZCodeEndpointOrigin(),
+        onBlocked: () => {
+          forceUpdateMainWindowCreationBlocked = true;
+        },
+      })
+    : { blocked: false };
+  if (!usesOfficialUpdateSource()) {
+    logger.info("[force-update] 非官方更新源，跳过远端强制升级检查");
   } else if (skipForceUpdateForLocalDevRuntime) {
     logger.info("[force-update] 本地 dev 构建（未打包）跳过远端强制升级检查");
   }

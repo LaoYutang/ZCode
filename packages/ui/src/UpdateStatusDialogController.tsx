@@ -2,6 +2,7 @@ import type { IPlatformService, UpdateStatePayload } from "@zcode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
+import { opensReleasePageForUpdate } from "@/lib/desktopUpdateMenu.js";
 import { UpdateStatusDialog } from "@/UpdateStatusDialog.js";
 import { formatUpdateReleaseDate, getLocalizedUpdateReleaseNotes } from "@/updateReleaseNotes.js";
 import {
@@ -30,6 +31,7 @@ export function UpdateStatusDialogController({
 }) {
   const { intl, locale } = useZCodeIntl();
   const requestConfirmation = useConfirmDialog();
+  const opensReleasePage = opensReleasePageForUpdate();
   const [autoDownloadAndInstallUpdates, setAutoDownloadAndInstallUpdates] = useState(false);
   const [updateActionInFlight, setUpdateActionInFlightState] = useState<UpdateActionInFlight>(null);
   const updateActionInFlightRef = useRef<typeof updateActionInFlight>(null);
@@ -149,6 +151,13 @@ export function UpdateStatusDialogController({
       return;
     }
 
+    // 外部下载模式没有下载态可等：main 只会打开 Release 页面并保持 update-available。
+    // 继续走 in-flight 锁会让按钮白锁一个超时，等一个永远不来的状态广播。
+    if (opensReleasePage) {
+      await platform.downloadUpdate();
+      return;
+    }
+
     // 如果 electron-updater 命中本地已下载缓存，main 侧会直接广播
     // update-downloaded。renderer 不能在 IPC ACK 前后乐观切到“下载中”，否则会闪过
     // 一帧无意义的 0%/下载态；这里只锁按钮，真实阶段完全跟随 main 的状态广播。
@@ -159,7 +168,7 @@ export function UpdateStatusDialogController({
       setUpdateActionInFlight(null);
       throw error;
     }
-  }, [platform, setUpdateActionInFlight]);
+  }, [opensReleasePage, platform, setUpdateActionInFlight]);
   const handleAutoDownloadAndInstallUpdatesChange = useCallback(
     async (enabled: boolean) => {
       setAutoDownloadAndInstallUpdates(enabled);
@@ -296,6 +305,7 @@ export function UpdateStatusDialogController({
       onRestartUpdate={handleRestartUpdate}
       onSkipUpdate={handleSkipUpdate}
       open={open}
+      opensReleasePage={opensReleasePage}
       phase={dialogPhase}
       progressLabel={progressLabel}
       progressValue={progressValue}

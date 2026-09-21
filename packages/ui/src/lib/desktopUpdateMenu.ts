@@ -1,14 +1,26 @@
 import {
-  ZCODE_PRODUCT_FLAVOR,
-  type ZCodeProductFlavor,
+  isAutoUpdateEnabledForUpdateSource,
+  isExternalUpdateInstallSource,
+  ZCODE_UPDATE_SOURCE,
   type UpdateStatePayload,
+  type ZCodeUpdateSource,
 } from "@zcode/shared";
 
-// 更新入口跟随产品身份而不是后端环境：Preview 身份（含生产后端的 Preview）禁用更新器。
+// 更新入口跟随更新源而不是产品身份：换用自己的 GitHub Release 时同样要显示入口。
 export function shouldShowDesktopUpdateEntry(
-  flavor: ZCodeProductFlavor = ZCODE_PRODUCT_FLAVOR,
+  source: ZCodeUpdateSource = ZCODE_UPDATE_SOURCE,
 ): boolean {
-  return flavor === "production";
+  return isAutoUpdateEnabledForUpdateSource(source);
+}
+
+/**
+ * 更新主按钮是「前往下载」还是「下载并更新」。
+ * 只决定文案与选项；真正打开 Release 页面还是进入下载流程由 main 独占裁决。
+ */
+export function opensReleasePageForUpdate(
+  source: ZCodeUpdateSource = ZCODE_UPDATE_SOURCE,
+): boolean {
+  return isExternalUpdateInstallSource(source);
 }
 
 export function getUpdateMenuLabelId(state: UpdateStatePayload | null) {

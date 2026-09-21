@@ -1,11 +1,16 @@
 name: Package Desktop App
 
-# 只允许手动触发，避免每次 push 都执行数十分钟的桌面打包。
+# tag 触发是发布路径：版本号由 tag 决定（见 specs/build/app-version-source.md），
+# 构建成功后创建跟随该 tag 的 GitHub Release，说明由 commit 拼成。
+# workflow_dispatch 只用于手动构建验证，不创建 Release。
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       target:
-        description: "目标平台与架构"
+        description: "目标平台与架构（仅手动构建）"
         required: true
         default: windows-x64
         type: choice
@@ -30,30 +35,20 @@ on:
         required: false
         default: false
         type: boolean
+      update_repository:
+        description: "更新源仓库 owner/repo（留空则沿用官方更新源；填了可验证 GitHub Release 检测）"
+        required: false
+        default: ""
+        type: string
       build_remote_runtime_assets:
         description: "额外准备 mock CDN/远端运行时资产（更慢，桌面安装包通常不需要）"
         required: false
         default: false
         type: boolean
       sign_macos:
-        description: "启用 macOS Developer ID 签名（需要证书 Secrets）"
+        description: "启用 macOS Developer ID 签名（tag 触发时按 secrets 自动判定，无需此开关）"
         required: false
         default: false
-        type: boolean
-      publish_release:
-        description: "构建成功后创建 GitHub Release"
-        required: false
-        default: false
-        type: boolean
-      release_tag:
-        description: "Release Tag（publish_release=true 时必填，例如 v3.14.0）"
-        required: false
-        default: ""
-        type: string
-      release_draft:
-        description: "以草稿形式创建 Release"
-        required: false
-        default: true
         type: boolean
       artifact_retention_days:
         description: "Actions artifact 保留天数（1-90）"
@@ -65,37 +60,126 @@ permissions:
   contents: read
 
 concurrency:
-  group: package-desktop-${{ github.ref }}-${{ inputs.target }}-${{ inputs.build_environment }}-${{ inputs.preview_identity }}-${{ inputs.publish_release }}
+  group: package-desktop-${{ github.ref }}-${{ inputs.target || 'all' }}
   cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Prepare build matrix
+    name: Resolve build inputs
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+      release_version: ${{ steps.resolve.outputs.release_version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      build_environment: ${{ steps.resolve.outputs.build_environment }}
+      preview_identity: ${{ steps.resolve.outputs.preview_identity }}
+      update_repository: ${{ steps.resolve.outputs.update_repository }}
+      sign_macos: ${{ steps.resolve.outputs.sign_macos }}
+      artifact_retention_days: ${{ steps.resolve.outputs.artifact_retention_days }}
     steps:
-      - name: Validate release inputs
+      - name: Resolve effective build inputs
+        id: resolve
         shell: bash
         env:
-          PUBLISH_RELEASE: ${{ inputs.publish_release }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
+          # tag 构建是发布路径：版本来自 tag，其余输入固定为发布口径，不受手动输入影响。
+          # secrets 不能用于 if 表达式，因此在这里按“证书是否存在”自动决定 macOS 签名。
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          DISPATCH_SIGN_MACOS: ${{ inputs.sign_macos }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          DISPATCH_BUILD_ENVIRONMENT: ${{ inputs.build_environment }}
+          DISPATCH_PREVIEW_IDENTITY: ${{ inputs.preview_identity }}
+          DISPATCH_UPDATE_REPOSITORY: ${{ inputs.update_repository }}
+          DISPATCH_RETENTION_DAYS: ${{ inputs.artifact_retention_days }}
         run: |
-          if [[ "$PUBLISH_RELEASE" == "true" && -z "${RELEASE_TAG// }" ]]; then
-            echo "::error::publish_release=true 时必须填写 release_tag。"
-            exit 1
+          set -euo pipefail
+
+          is_release="false"
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            is_release="true"
           fi
+
+          if [[ "$is_release" == "true" ]]; then
+            # 与应用版本解析同一口径：去掉前导非数字字符，保留 prerelease 后缀。
+            release_version="${REF_NAME#v}"
+            if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::tag ${REF_NAME} 无法解析出合法 semver 版本（期望形如 v3.14.1）。"
+              exit 1
+            fi
+            prerelease="false"
+            if [[ "$release_version" == *-* ]]; then
+              prerelease="true"
+            fi
+            build_environment="production"
+            preview_identity="false"
+            update_repository="$REPOSITORY"
+            artifact_retention_days="14"
+            if [[ -n "${APPLE_CERTIFICATE_BASE64:-}" ]]; then
+              sign_macos="true"
+            else
+              sign_macos="false"
+            fi
+          else
+            release_version="0.0.0-dev"
+            prerelease="false"
+            build_environment="${DISPATCH_BUILD_ENVIRONMENT:-production}"
+            preview_identity="${DISPATCH_PREVIEW_IDENTITY:-false}"
+            update_repository="${DISPATCH_UPDATE_REPOSITORY:-}"
+            sign_macos="${DISPATCH_SIGN_MACOS:-false}"
+            artifact_retention_days="${DISPATCH_RETENTION_DAYS:-14}"
+          fi
+
+          {
+            echo "is_release=${is_release}"
+            echo "release_version=${release_version}"
+            echo "prerelease=${prerelease}"
+            echo "build_environment=${build_environment}"
+            echo "preview_identity=${preview_identity}"
+            echo "update_repository=${update_repository}"
+            echo "sign_macos=${sign_macos}"
+            echo "artifact_retention_days=${artifact_retention_days}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "[prepare] is_release=${is_release} version=${release_version} env=${build_environment} preview_identity=${preview_identity} update_repository=${update_repository:-<official>} sign_macos=${sign_macos}"
+
+      - name: Validate macOS signing secrets
+        if: steps.resolve.outputs.sign_macos == 'true'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::需要 macOS 签名但缺少 secrets.${name}"
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       - name: Resolve target matrix
         id: matrix
         shell: bash
         env:
+          IS_RELEASE: ${{ steps.resolve.outputs.is_release }}
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
 
-          case "$TARGET" in
+          # tag 触发固定构建全平台：一个 Release 必须自带所有平台的安装包。
+          resolved_target="all"
+          if [[ "$IS_RELEASE" != "true" ]]; then
+            resolved_target="$TARGET"
+          fi
+
+          case "$resolved_target" in
             windows-x64)
               matrix='[{"target":"windows-x64","os":"win","arch":"x64","platform":"win","runner":"windows-2022"}]'
               ;;
@@ -118,7 +202,7 @@ jobs:
               matrix='[{"target":"windows-x64","os":"win","arch":"x64","platform":"win","runner":"windows-2022"},{"target":"windows-arm64","os":"win","arch":"arm64","platform":"win","runner":"windows-11-arm"},{"target":"macos-arm64","os":"mac","arch":"arm64","platform":"mac","runner":"macos-15"},{"target":"macos-x64","os":"mac","arch":"x64","platform":"mac","runner":"macos-15-intel"},{"target":"linux-x64","os":"linux","arch":"x64","platform":"linux","runner":"ubuntu-22.04"},{"target":"linux-arm64","os":"linux","arch":"arm64","platform":"linux","runner":"ubuntu-22.04-arm"}]'
               ;;
             *)
-              echo "::error::不支持的目标: $TARGET"
+              echo "::error::不支持的目标: $resolved_target"
               exit 1
               ;;
           esac
@@ -142,8 +226,12 @@ jobs:
     env:
       NODE_VERSION: "24.14.0"
       PNPM_VERSION: "10.33.2"
-      ZCODE_ENV: ${{ inputs.build_environment }}
-      ZCODE_PREVIEW_IDENTITY: ${{ inputs.preview_identity && '1' || '0' }}
+      ZCODE_ENV: ${{ needs.prepare.outputs.build_environment }}
+      ZCODE_PREVIEW_IDENTITY: ${{ needs.prepare.outputs.preview_identity == 'true' && '1' || '0' }}
+      # 应用版本由 tag 派生，这里显式传入让构建与 Release tag 同源（手动构建时是 0.0.0-dev）。
+      ZCODE_RELEASE_TAG: ${{ needs.prepare.outputs.is_release == 'true' && github.ref_name || '' }}
+      # 配了仓库即以该仓库的 GitHub Release 作为更新源；留空则沿用官方 manifest。
+      ZCODE_UPDATE_REPOSITORY: ${{ needs.prepare.outputs.update_repository }}
       ZCODE_SKIP_REMOTE_ASSETS: ${{ inputs.build_remote_runtime_assets && '0' || '1' }}
       # 在 GitHub 托管 runner 上优先使用官方源；仓库变量可覆盖为内部镜像。
       ELECTRON_MIRROR: ${{ vars.ELECTRON_MIRROR || 'https://github.com/electron/electron/releases/download/' }}
@@ -154,7 +242,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # build metadata 会读取 Git 历史，保留完整历史避免版本信息不完整。
+          # 版本解析与 build metadata 会读取 Git 标签和历史，保留完整历史避免版本信息不完整。
           fetch-depth: 0
 
       - name: Setup pnpm
@@ -191,34 +279,36 @@ jobs:
           node --version
           pnpm --version
 
-      - name: Validate macOS signing secrets
-        if: matrix.platform == 'mac' && inputs.sign_macos
-        shell: bash
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        run: |
-          set -euo pipefail
-          missing=0
-          for name in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::sign_macos=true 但缺少 secrets.${name}"
-              missing=1
-            fi
-          done
-          exit "$missing"
-
       - name: Bundle desktop app
         env:
-          ZCODE_ENABLE_MAC_SIGN: ${{ matrix.platform == 'mac' && inputs.sign_macos && '1' || '0' }}
-          APPLE_SIGNING_IDENTITY: ${{ inputs.sign_macos && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          CSC_LINK: ${{ inputs.sign_macos && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
-          CSC_KEY_PASSWORD: ${{ inputs.sign_macos && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          ZCODE_ENABLE_MAC_SIGN: ${{ matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true' && '1' || '0' }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          CSC_LINK: ${{ matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true' && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
         run: pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arch }}
 
+      - name: Verify packaged app version
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ needs.prepare.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          # latest*.yml 里的 version 就是客户端判定“是否有新版本”的依据，
+          # 它必须等于 Release tag，否则客户端会永久判定为已是最新。
+          channel_file="$(find packages/desktop/dist -maxdepth 1 -name 'latest*.yml' -print -quit)"
+          if [[ -z "$channel_file" ]]; then
+            echo "::error::未找到 packages/desktop/dist/latest*.yml —— 客户端将无法检测更新。"
+            exit 1
+          fi
+          actual_version="$(grep -m1 '^version:' "$channel_file" | sed 's/^version:[[:space:]]*//')"
+          echo "[verify] $channel_file version=${actual_version} expected=${EXPECTED_VERSION}"
+          if [[ "$actual_version" != "$EXPECTED_VERSION" ]]; then
+            echo "::error::更新描述文件版本 ${actual_version} 与预期 ${EXPECTED_VERSION} 不一致。"
+            exit 1
+          fi
+
       - name: Verify macOS signature
-        if: matrix.platform == 'mac' && inputs.sign_macos
+        if: matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -232,7 +322,7 @@ jobs:
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zcode-desktop-${{ matrix.target }}-${{ inputs.build_environment }}${{ inputs.preview_identity && '-preview' || '' }}
+          name: zcode-desktop-${{ matrix.target }}-${{ needs.prepare.outputs.build_environment }}${{ needs.prepare.outputs.preview_identity == 'true' && '-preview' || '' }}
           path: |
             packages/desktop/dist/*.exe
             packages/desktop/dist/*.blockmap
@@ -244,17 +334,23 @@ jobs:
             packages/desktop/dist/*.rpm
             packages/desktop/dist/*.pkg.tar.zst
           if-no-files-found: error
-          retention-days: ${{ inputs.artifact_retention_days }}
+          retention-days: ${{ fromJSON(needs.prepare.outputs.artifact_retention_days) }}
 
   publish:
     name: Publish GitHub Release
-    needs: build
-    if: ${{ inputs.publish_release }}
+    needs: [prepare, build]
+    if: needs.prepare.outputs.is_release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 生成 Release 说明需要 tag 区间内的提交历史。
+          fetch-depth: 0
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -271,26 +367,53 @@ jobs:
           fi
           sha256sum "${files[@]}" > release-assets/SHA256SUMS.txt
 
-      - name: Create GitHub Release
+      - name: Generate release notes from commits
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          # 用 git log 而不是 gh --generate-notes：后者按 PR 聚合，而客户端展示的是
+          # 这份 markdown 原文（见 specs/update/desktop-auto-update-source.md）。
+          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)"
+          # 首行 markdown 标题会被 deriveReleaseNotesTitle 当作更新说明的标题。
+          # 下面的单引号是刻意的：%s / %h 由 git 展开，不是 shell。
+          # shellcheck disable=SC2016
+          {
+            echo "# ZCode ${RELEASE_TAG#v}"
+            echo
+            echo "## 更新内容"
+            if [[ -n "$previous_tag" ]]; then
+              git log --no-merges --pretty=format:'- %s (`%h`)' "${previous_tag}..${RELEASE_TAG}"
+              echo
+              echo
+              echo "**Full Changelog**: ${SERVER_URL}/${REPOSITORY}/compare/${previous_tag}...${RELEASE_TAG}"
+            else
+              # 仓库还没有更早的 tag：列出该 tag 之前的全部提交。
+              git log --no-merges --pretty=format:'- %s (`%h`)' "${RELEASE_TAG}"
+            fi
+            echo
+          } > release-notes.md
+
+          if [[ "$(wc -l < release-notes.md)" -le 3 ]]; then
+            echo "::warning::release-notes.md 只有标题与空行，说明 tag 区间内没有可列举的提交。"
+          fi
+          cat release-notes.md
+
+      - name: Publish release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_DRAFT: ${{ inputs.release_draft }}
-          RELEASE_PRERELEASE: ${{ inputs.build_environment == 'test' || inputs.preview_identity }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.release_version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "::error::Release $RELEASE_TAG 已存在，拒绝覆盖。"
             exit 1
-          fi
-
-          args=(release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "ZCode ${RELEASE_TAG#v}" --generate-notes)
-          if [[ "$RELEASE_DRAFT" == "true" ]]; then
-            args+=(--draft)
-          fi
-          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
-            args+=(--prerelease)
           fi
 
           mapfile -d '' files < <(find release-assets -type f -print0 | sort -z)
@@ -299,4 +422,17 @@ jobs:
             exit 1
           fi
 
-          gh "${args[@]}" "${files[@]}"
+          # 先建 draft 再上传资产，最后才转正：
+          # 客户端读的是 releases/latest 与随资产发布的 latest*.yml，提前转正会让
+          # 客户端在资产就位前拿到 404，表现为“已是最新”而不是“有更新”。
+          args=(release create "$RELEASE_TAG" --draft --verify-tag --title "ZCode ${RELEASE_VERSION}" --notes-file release-notes.md)
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh "${args[@]}"
+
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
+
+          gh release edit "$RELEASE_TAG" --draft=false
+
+          echo "[publish] ${RELEASE_TAG} 已发布（prerelease=${PRERELEASE}）。"

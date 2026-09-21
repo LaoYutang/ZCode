@@ -22,6 +22,7 @@ coverage/
 .idea/
 .zed/
 .cache
+.zcode
 # CI 会跨任务保留这些下载缓存；不应进入 Git 未跟踪源码枚举。
 /.electron-builder-cache/
 /.electron-cache/

@@ -32,6 +32,7 @@ import {
 } from "./deterministic-tar-archive.mjs";
 import { runCommand } from "./spawn-command.mjs";
 import { resolveIntranetDepsBaseUrl } from "./intranetDefaults.mjs";
+import { resolveAppVersion } from "../packages/desktop/scripts/build-metadata.mjs";
 
 export { computeComponentSourceSha256, packComponentSourceAsArchive };
 
@@ -40,7 +41,9 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(scriptDir, "..");
 const desktopDir = join(rootDir, "packages/desktop");
 const mockCdnDir = join(desktopDir, "mock-cdn");
-const version = require(join(rootDir, "package.json")).version;
+// 必须与主链路同源（specs/build/app-version-source.md）：运行时 desktopRuntimeEnv.ts 用
+// join(mockCdnDir, "releases", ZCODE_VERSION) 反查这个目录，版本分歧会让开发态资产找不到。
+const version = resolveAppVersion();
 const ZCODE_AGENT_RUNTIME = {
   glm: {
     version: readZCodeAgentRuntimeVersion(),

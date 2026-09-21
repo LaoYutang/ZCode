@@ -705,6 +705,11 @@ async function main() {
     "electron-builder",
     "--config",
     "electron-builder.config.js",
+    // 必须显式关闭发布：publish.provider 是 github 且构建发生在 tag 上时，
+    // electron-builder 的默认策略会自己尝试上传 release，并因缺 GH_TOKEN 失败。
+    // 发布统一由 .github/workflows/package-desktop.yml 的 publish job 负责。
+    "--publish",
+    "never",
     osBuilderFlagMap[os],
     archBuilderFlagMap[arch],
   ];

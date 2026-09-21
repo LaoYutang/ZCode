@@ -20,6 +20,7 @@ import {
   resolveDesktopArtifactSuffix,
   resolveDesktopProductIdentity,
 } from "./scripts/desktop-product-identity.mjs";
+import { resolveDesktopUpdateSource } from "./scripts/desktop-update-source.mjs";
 import { verifyStagedKoffi } from "./scripts/koffi-package-assets.mjs";
 const ELECTRON_BUILDER_ARCH = {
   1: "x64",
@@ -72,6 +73,10 @@ const buildMetadata = getBuildMetadata();
 const targetPlatform = getTargetPlatform();
 const builtinProviderConfig = await loadBuiltinProviderConfig();
 const desktopProductIdentity = resolveDesktopProductIdentity({
+  ...process.env,
+  ZCODE_ENV: builtinProviderConfig.environment,
+});
+const desktopUpdateSource = resolveDesktopUpdateSource({
   ...process.env,
   ZCODE_ENV: builtinProviderConfig.environment,
 });
@@ -753,14 +758,25 @@ export default {
     installerHeaderIcon: "build/icon_installer.ico",
   },
   detectUpdateChannel: false,
-  publish: {
-    provider: "generic",
-    // 当前 OSS/CDN 对多 Range 请求返回 206，但 Content-Type 仍是 application/x-msdownload，
-    // electron-updater 会因缺少 multipart/byteranges 直接回退整包下载。关闭 multiple range 后仍走差分，
-    // 只是按单 Range 顺序拉取差异块，避免 Windows 用户更新时从约 15MB 退化成 300MB+ 全量包。
-    useMultipleRangeRequest: false,
-    // 新客户端运行时使用服务端 manifest provider；这里仅保留 electron-builder 必需的
-    // generic publish 占位，避免打包产物继续携带可配置的旧 stable feed。
-    url: "http://localhost:8081",
-  },
+  publish: desktopUpdateSource.owner
+    ? {
+        // 自己的 GitHub Release 作为更新源：provider 必须与运行时 setFeedURL 一致，
+        // 否则随包 app-update.yml 会指向别的仓库，开发态验证与真机表现分歧。
+        // 不能带 useMultipleRangeRequest：electron-builder 的 github 分支不接受该字段
+        // （electron-updater 的 GitHubProvider 内部已强制关闭多 Range）。
+        provider: "github",
+        owner: desktopUpdateSource.owner,
+        repo: desktopUpdateSource.repo,
+        releaseType: "release",
+      }
+    : {
+        provider: "generic",
+        // 当前 OSS/CDN 对多 Range 请求返回 206，但 Content-Type 仍是 application/x-msdownload，
+        // electron-updater 会因缺少 multipart/byteranges 直接回退整包下载。关闭 multiple range 后仍走差分，
+        // 只是按单 Range 顺序拉取差异块，避免 Windows 用户更新时从约 15MB 退化成 300MB+ 全量包。
+        useMultipleRangeRequest: false,
+        // 新客户端运行时使用服务端 manifest provider；这里仅保留 electron-builder 必需的
+        // generic publish 占位，避免打包产物继续携带可配置的旧 stable feed。
+        url: "http://localhost:8081",
+      },
 };

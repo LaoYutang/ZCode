@@ -48,6 +48,12 @@ function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf-8"));
 }
 
+/** 开发态占位版本。必须是合法 semver：electron-builder 会校验 version 字段，非法值直接抛错。 */
+export const DEV_APP_VERSION = "0.0.0-dev";
+const RELEASE_TAG_ENV = "ZCODE_RELEASE_TAG";
+/** 三段数字 + 可选 prerelease 后缀。与 build-windows-browser-import-helper.mjs 的校验保持同一口径。 */
+const APP_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
 function normalizeVersion(version) {
   if (typeof version !== "string" || version.length === 0) {
     return "unknown";
@@ -55,6 +61,58 @@ function normalizeVersion(version) {
 
   const normalized = version.replace(/^[^\d]*/, "");
   return normalized || version;
+}
+
+/**
+ * HEAD 正好落在 tag 上时返回该 tag，否则 null。
+ * 必须用 --exact-match：否则普通提交会继承最近一个 tag 的版本，把开发构建伪装成发布版本。
+ */
+function resolveExactTagVersion() {
+  try {
+    const tag = execSync("git describe --tags --exact-match HEAD", {
+      cwd: workspaceDir,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    return tag || null;
+  } catch {
+    return null;
+  }
+}
+
+/** 显式覆盖优先，其次是 CI 的 tag 构建，最后才回退到本地 git 探测。 */
+export function resolveReleaseTag(env = process.env, readExactTag = resolveExactTagVersion) {
+  const explicitTag = env[RELEASE_TAG_ENV]?.trim();
+  if (explicitTag) {
+    return explicitTag;
+  }
+
+  if (env.GITHUB_REF_TYPE?.trim() === "tag") {
+    return env.GITHUB_REF_NAME?.trim() || null;
+  }
+
+  return readExactTag();
+}
+
+/**
+ * 应用版本以 git tag 为唯一来源（见 specs/build/app-version-source.md）。
+ * 坏 tag 直接失败而不是静默降级：静默出版本会让产物带着错误版本流到客户端，且客户端无法自愈。
+ */
+export function resolveAppVersion(env = process.env, readExactTag = resolveExactTagVersion) {
+  const tag = resolveReleaseTag(env, readExactTag);
+  if (!tag) {
+    return DEV_APP_VERSION;
+  }
+
+  const version = normalizeVersion(tag);
+  if (!APP_VERSION_PATTERN.test(version)) {
+    throw new Error(
+      `Invalid app version from tag "${tag}": expected semver like v3.14.1, got "${version}"`,
+    );
+  }
+
+  return version;
 }
 
 function resolveInstalledPackageVersion(packageName, fallbackVersion) {
@@ -80,11 +138,10 @@ function resolveCommitId() {
 }
 
 export function collectBuildMetadata() {
-  const rootPackageJson = readJson(resolve(workspaceDir, "package.json"));
   const desktopPackageJson = readJson(resolve(desktopDir, "package.json"));
 
   return {
-    appVersion: normalizeVersion(rootPackageJson.version),
+    appVersion: resolveAppVersion(),
     buildCommitId: resolveCommitId(),
     buildTime: new Date().toISOString(),
     electronBuilderVersion: resolveInstalledPackageVersion(

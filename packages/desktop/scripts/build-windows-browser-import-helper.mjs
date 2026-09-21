@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { arch, platform } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
+import { resolveAppVersion } from "./build-metadata.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
@@ -16,7 +17,9 @@ const targetKey = `win32-${targetArch}`;
 const outputDir = resolve(desktopRoot, `bundled-tools/${targetKey}/browser-import`);
 const outputPath = resolve(outputDir, "zcode-browser-import-helper.exe");
 const generatedAssemblyInfoPath = resolve(outputDir, "BrowserImportAssemblyInfo.g.cs");
-const appVersion = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8")).version;
+// 版本必须与主链路同源（specs/build/app-version-source.md）：这里读的是 tag 派生值，
+// 不能再直接读根 package.json，否则 assembly 版本会和安装包版本分歧。
+const appVersion = resolveAppVersion();
 const buildCommit = (
   process.env.ZCODE_COMMIT ??
   execFileSync("git", ["rev-parse", "--short=8", "HEAD"], {

@@ -33,6 +33,7 @@ export function UpdateStatusDialog({
   onRestartUpdate,
   onSkipUpdate,
   open,
+  opensReleasePage = false,
   phase,
   progressLabel,
   progressValue,
@@ -54,6 +55,8 @@ export function UpdateStatusDialog({
   onRestartUpdate: () => Promise<void>;
   onSkipUpdate: () => Promise<void>;
   open: boolean;
+  /** 主按钮打开 Release 页面而不是在应用内下载：该模式下没有下载进度，也没有自动下载选项。 */
+  opensReleasePage?: boolean;
   phase: UpdateStatusDialogPhase;
   progressLabel: string | null;
   progressValue: number;
@@ -75,6 +78,8 @@ export function UpdateStatusDialog({
     titleId: dialogTitleId,
   });
   const showSkipVersion = isBeforeDownload && Boolean(skippableVersion);
+  // 外部下载由浏览器接管，应用内的“自动下载并安装”在该模式下没有意义。
+  const showAutoDownloadToggle = isBeforeDownload && !opensReleasePage;
   const showLaterButton = !isDownloading;
   const titleClassName =
     "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-base font-medium leading-5 text-foreground";
@@ -150,7 +155,7 @@ export function UpdateStatusDialog({
       ) : null}
 
       <div className={cn("[app-region:no-drag]", isDownloading ? "-mt-2" : null)}>
-        {isBeforeDownload ? (
+        {showAutoDownloadToggle ? (
           <label className="mb-4 flex min-w-0 items-center gap-2 text-ui-base leading-5 text-foreground">
             <Checkbox
               checked={autoDownloadAndInstallUpdates}
@@ -247,7 +252,11 @@ export function UpdateStatusDialog({
                 disabled={isUpdateActionPending}
                 onClick={() => void onDownloadUpdate()}
               >
-                {intl.formatMessage({ id: "updateDialog.downloadAndUpdate" })}
+                {intl.formatMessage({
+                  id: opensReleasePage
+                    ? "updateDialog.openDownloadPage"
+                    : "updateDialog.downloadAndUpdate",
+                })}
               </Button>
             )}
           </div>
