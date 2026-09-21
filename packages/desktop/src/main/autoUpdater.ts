@@ -23,6 +23,11 @@ import semver from "semver";
 import { buildGitHubReleasePageUrl, fetchLatestGitHubRelease } from "./githubReleaseNotes.js";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
+import {
+  getErrorCode,
+  isUnresolvedReleaseError,
+  toSingleLineErrorMessage,
+} from "./updateErrorMessage.js";
 const { autoUpdater } = pkg;
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
@@ -1081,41 +1086,52 @@ function shouldIgnoreCancelledDownloadError(error: unknown): boolean {
   return true;
 }
 
-/** electron-updater 抛的错误对用户是无意义的堆栈，这里映射成可读提示。 */
-function toUserFacingUpdateErrorMessage(error: unknown): string {
-  const code = isRecord(error) ? error["code"] : undefined;
-  if (code === "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND") {
-    return menuLocale === "zh-CN"
-      ? "暂无法检查更新：发布产物缺少更新描述文件（latest.yml）。"
-      : "Unable to check for updates: the release is missing its update manifest (latest.yml).";
-  }
+function getNoPublishedReleaseMessage(): string {
+  return menuLocale === "zh-CN"
+    ? "暂时无法检查更新：该仓库还没有已发布的 Release。"
+    : "Unable to check for updates: this repository has no published release yet.";
+}
 
-  return error instanceof Error ? error.message : String(error);
+function getMissingUpdateManifestMessage(): string {
+  return menuLocale === "zh-CN"
+    ? "暂无法检查更新：发布产物缺少更新描述文件（latest.yml）。"
+    : "Unable to check for updates: the release is missing its update manifest (latest.yml).";
 }
 
 /**
- * GitHub Release 源下「仓库还没有任何正式发布」是正常状态而不是失败：
- * provider 在 releases/latest 取不到 tag 时会抛这两个 code。
- * 继续走错误路径会让每次启动和每小时轮询都刷一条 error 日志。
+ * electron-updater 的错误消息不适合直接展示：`Cannot parse releases feed` 会把完整的
+ * releases feed XML、响应头和堆栈一起拼进 message。这里映射成可读提示，兜底也必须压成单行。
  */
-function isNoPublishedReleaseError(error: unknown): boolean {
-  if (!isExternalUpdateInstallSource() || !isRecord(error)) {
-    return false;
+function toUserFacingUpdateErrorMessage(error: unknown): string {
+  if (isUnresolvedLatestReleaseError(error)) {
+    return getNoPublishedReleaseMessage();
   }
 
-  const code = error["code"];
-  return (
-    code === "ERR_UPDATER_LATEST_VERSION_NOT_FOUND" || code === "ERR_UPDATER_NO_PUBLISHED_VERSIONS"
-  );
+  if (getErrorCode(error) === "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND") {
+    return getMissingUpdateManifestMessage();
+  }
+
+  return toSingleLineErrorMessage(error instanceof Error ? error.message : String(error));
 }
 
-/** 把「没有可用的正式发布」收敛成 up-to-date。返回 true 表示错误已被处理。 */
+/**
+ * 只有自己的 GitHub Release 源才把「解析不出最新发布」当成正常状态：tag 已推但 Release 还没
+ * 发布（本仓库的发布流程先建 draft、上传资产、最后转正），或仓库根本没有正式发布。
+ * 官方 manifest 源的同名错误码含义不同，不能这样归类。
+ */
+function isUnresolvedLatestReleaseError(error: unknown): boolean {
+  return isExternalUpdateInstallSource() && isUnresolvedReleaseError(error);
+}
+
+/** 把「解析不出最新发布」收敛成“不是更新”。返回 true 表示错误已被处理。 */
 function settleNoPublishedRelease(error: unknown, source: string): boolean {
-  if (!isNoPublishedReleaseError(error)) {
+  if (!isUnresolvedLatestReleaseError(error)) {
     return false;
   }
 
-  logger.info(`[auto-update] ${source}: repository has no published release yet`);
+  logger.warn(
+    `[auto-update] ${source}: 解析不出最新发布（tag 尚未发布为 Release，或仓库无正式发布）code=${String(getErrorCode(error) ?? "none")}`,
+  );
   clearAvailableUpdateState();
   clearDownloadingUpdateState();
   setAutoUpdaterMenuState(
@@ -1124,10 +1140,16 @@ function settleNoPublishedRelease(error: unknown, source: string): boolean {
       : { kind: "idle", enabled: true },
   );
   notifyForceAutoUpdate({ kind: "error", message: getForceAutoUpdateNoUpdateMessage() });
-  sendManualCheckResult({
-    kind: "up-to-date",
-    currentVersion: getCurrentAppVersionForUpdate(),
-  });
+  // 后台轮询保持安静；用户主动点“检查更新”时必须给出可操作的原因，回“已是最新”是误导。
+  const manualCheckPending = manualCheckWebContentsId !== null;
+  sendManualCheckResult(
+    manualCheckPending
+      ? { kind: "error", message: getNoPublishedReleaseMessage() }
+      : {
+          kind: "up-to-date",
+          currentVersion: getCurrentAppVersionForUpdate(),
+        },
+  );
   return true;
 }
 

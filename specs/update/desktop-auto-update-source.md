@@ -46,12 +46,37 @@
 
 | 情况 | 表现 |
 | --- | --- |
-| Release 缺对应平台的 `latest*.yml` | `checkForUpdates` 抛 `ERR_UPDATER_CHANNEL_FILE_NOT_FOUND` → 映射为"暂无法检查更新"的用户可读提示，不影响应用使用 |
-| 仓库没有任何 Release | 表现为"已是最新"（`releases/latest` 无内容） |
-| Release 是 draft 或 prerelease | `releases/latest` 跳过它 → 表现为"已是最新"（这是发布流程必须避免 draft/prerelease 的原因） |
+| Release 缺对应平台的 `latest*.yml` | `checkForUpdates` 抛 `ERR_UPDATER_CHANNEL_FILE_NOT_FOUND` → "暂无法检查更新：发布产物缺少更新描述文件" |
+| tag 已推、Release 还没发布（draft） | GitHub 把 `releases/latest` 重定向到 `/releases` **索引页**，该页面对 `Accept: application/json` 返回 **406** → provider 抛 `ERR_UPDATER_INVALID_RELEASE_FEED` → 归入"解析不出最新发布" |
+| 仓库没有任何 Release | 同上一行（`ERR_UPDATER_LATEST_VERSION_NOT_FOUND` / 无 code 的 `No published versions on GitHub`） |
+| Release 是 draft 或 prerelease | `releases/latest` 跳过它 → 同上 |
 | release notes 接口失败/限流 | 降级为只有版本号 + 跳转链接 |
 | 网络不可达 | 与现有行为一致：吞掉错误回到 idle，不阻塞主流程 |
 | `owner/repo` 格式非法 | 构建期失败 |
+
+### 「解析不出最新发布」的归类规则
+
+只有 `github-release` 源才把这一类错误当成正常状态（tag 已推、Release 未发布，或仓库无正式发布）。
+判据覆盖实测到的三类错误码：`ERR_UPDATER_LATEST_VERSION_NOT_FOUND`、`ERR_UPDATER_INVALID_RELEASE_FEED`、
+`ERR_UPDATER_NO_PUBLISHED_VERSIONS`，以及无 code 的 `No published versions on GitHub` 消息。
+
+- **后台轮询 / 启动检查**：静默回到 idle，只写一条 warn 日志（不打 error、不弹提示）。
+- **用户手动检查**：必须给出可操作原因（"该仓库还没有已发布的 Release"），**不能回"已是最新"** —— 仓库里一个 Release 都没有时说"已是最新"是误导。
+
+### 用户可见错误文案必须压成单行
+
+electron-updater 的 message 会把**整个 releases atom feed XML、完整 HTTP 响应头和堆栈**拼在一起。
+直接把 `error.message` 透传给 renderer 会让报错占满整个界面（这是实际发生过的回归）。
+
+规则：用户可见文案一律经 `toSingleLineErrorMessage()` 折叠空白并截断到 200 字符；完整错误对象只写日志，不进 UI。
+逻辑落在零依赖的 `packages/desktop/src/main/updateErrorMessage.ts`，由
+`packages/desktop/test/updateErrorMessage.test.mjs` 覆盖（零 import 所以能被纯 Node 直接 import 测试）。
+
+### tag → Release 之间客户端看不到更新
+
+发布流程是「全平台构建完成 → 建 draft → 上传资产 → 转正」，因此从推 tag 到 Release 转正之间，
+客户端解析不出最新发布，表现为"没有更新"。这是**正确且安全**的行为：宁可暂时不提示，也不能让客户端
+拿到资产不全的 Release。缩短这个窗口只能靠减少一次发布的平台数，当前设计不追求这点。
 
 ## 发布侧前置条件
 
