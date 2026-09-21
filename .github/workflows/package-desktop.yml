@@ -1,0 +1,302 @@
+name: Package Desktop App
+
+# 只允许手动触发，避免每次 push 都执行数十分钟的桌面打包。
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "目标平台与架构"
+        required: true
+        default: windows-x64
+        type: choice
+        options:
+          - windows-x64
+          - windows-arm64
+          - macos-arm64
+          - macos-x64
+          - linux-x64
+          - linux-arm64
+          - all
+      build_environment:
+        description: "构建后端环境（ZCODE_ENV）"
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - test
+      preview_identity:
+        description: "使用 ZCode Preview 产品身份（不影响后端环境）"
+        required: false
+        default: false
+        type: boolean
+      build_remote_runtime_assets:
+        description: "额外准备 mock CDN/远端运行时资产（更慢，桌面安装包通常不需要）"
+        required: false
+        default: false
+        type: boolean
+      sign_macos:
+        description: "启用 macOS Developer ID 签名（需要证书 Secrets）"
+        required: false
+        default: false
+        type: boolean
+      publish_release:
+        description: "构建成功后创建 GitHub Release"
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: "Release Tag（publish_release=true 时必填，例如 v3.14.0）"
+        required: false
+        default: ""
+        type: string
+      release_draft:
+        description: "以草稿形式创建 Release"
+        required: false
+        default: true
+        type: boolean
+      artifact_retention_days:
+        description: "Actions artifact 保留天数（1-90）"
+        required: false
+        default: 14
+        type: number
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-desktop-${{ github.ref }}-${{ inputs.target }}-${{ inputs.build_environment }}-${{ inputs.preview_identity }}-${{ inputs.publish_release }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare build matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Validate release inputs
+        shell: bash
+        env:
+          PUBLISH_RELEASE: ${{ inputs.publish_release }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [[ "$PUBLISH_RELEASE" == "true" && -z "${RELEASE_TAG// }" ]]; then
+            echo "::error::publish_release=true 时必须填写 release_tag。"
+            exit 1
+          fi
+
+      - name: Resolve target matrix
+        id: matrix
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+
+          case "$TARGET" in
+            windows-x64)
+              matrix='[{"target":"windows-x64","os":"win","arch":"x64","platform":"win","runner":"windows-2022"}]'
+              ;;
+            windows-arm64)
+              matrix='[{"target":"windows-arm64","os":"win","arch":"arm64","platform":"win","runner":"windows-11-arm"}]'
+              ;;
+            macos-arm64)
+              matrix='[{"target":"macos-arm64","os":"mac","arch":"arm64","platform":"mac","runner":"macos-15"}]'
+              ;;
+            macos-x64)
+              matrix='[{"target":"macos-x64","os":"mac","arch":"x64","platform":"mac","runner":"macos-15-intel"}]'
+              ;;
+            linux-x64)
+              matrix='[{"target":"linux-x64","os":"linux","arch":"x64","platform":"linux","runner":"ubuntu-22.04"}]'
+              ;;
+            linux-arm64)
+              matrix='[{"target":"linux-arm64","os":"linux","arch":"arm64","platform":"linux","runner":"ubuntu-22.04-arm"}]'
+              ;;
+            all)
+              matrix='[{"target":"windows-x64","os":"win","arch":"x64","platform":"win","runner":"windows-2022"},{"target":"windows-arm64","os":"win","arch":"arm64","platform":"win","runner":"windows-11-arm"},{"target":"macos-arm64","os":"mac","arch":"arm64","platform":"mac","runner":"macos-15"},{"target":"macos-x64","os":"mac","arch":"x64","platform":"mac","runner":"macos-15-intel"},{"target":"linux-x64","os":"linux","arch":"x64","platform":"linux","runner":"ubuntu-22.04"},{"target":"linux-arm64","os":"linux","arch":"arm64","platform":"linux","runner":"ubuntu-22.04-arm"}]'
+              ;;
+            *)
+              echo "::error::不支持的目标: $TARGET"
+              exit 1
+              ;;
+          esac
+
+          {
+            echo 'matrix<<EOF'
+            printf '%s\n' "$matrix"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.target }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    env:
+      NODE_VERSION: "24.14.0"
+      PNPM_VERSION: "10.33.2"
+      ZCODE_ENV: ${{ inputs.build_environment }}
+      ZCODE_PREVIEW_IDENTITY: ${{ inputs.preview_identity && '1' || '0' }}
+      ZCODE_SKIP_REMOTE_ASSETS: ${{ inputs.build_remote_runtime_assets && '0' || '1' }}
+      # 在 GitHub 托管 runner 上优先使用官方源；仓库变量可覆盖为内部镜像。
+      ELECTRON_MIRROR: ${{ vars.ELECTRON_MIRROR || 'https://github.com/electron/electron/releases/download/' }}
+      ELECTRON_BUILDER_BINARIES_MIRROR: ${{ vars.ELECTRON_BUILDER_BINARIES_MIRROR || 'https://github.com/electron-userland/electron-builder-binaries/releases/download/' }}
+      NPM_CONFIG_FETCH_RETRIES: "5"
+      NPM_CONFIG_FETCH_TIMEOUT: "600000"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # build metadata 会读取 Git 历史，保留完整历史避免版本信息不完整。
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            rpm \
+            xz-utils \
+            libarchive-tools \
+            fakeroot \
+            python3 \
+            make \
+            g++
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Show toolchain
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Validate macOS signing secrets
+        if: matrix.platform == 'mac' && inputs.sign_macos
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::sign_macos=true 但缺少 secrets.${name}"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Bundle desktop app
+        env:
+          ZCODE_ENABLE_MAC_SIGN: ${{ matrix.platform == 'mac' && inputs.sign_macos && '1' || '0' }}
+          APPLE_SIGNING_IDENTITY: ${{ inputs.sign_macos && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          CSC_LINK: ${{ inputs.sign_macos && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
+          CSC_KEY_PASSWORD: ${{ inputs.sign_macos && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+        run: pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arch }}
+
+      - name: Verify macOS signature
+        if: matrix.platform == 'mac' && inputs.sign_macos
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find packages/desktop/dist -maxdepth 3 -type d -name '*.app' -print -quit)"
+          if [[ -z "$app_path" ]]; then
+            echo "::error::未找到 macOS .app 产物"
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zcode-desktop-${{ matrix.target }}-${{ inputs.build_environment }}${{ inputs.preview_identity && '-preview' || '' }}
+          path: |
+            packages/desktop/dist/*.exe
+            packages/desktop/dist/*.blockmap
+            packages/desktop/dist/*.yml
+            packages/desktop/dist/*.dmg
+            packages/desktop/dist/*.zip
+            packages/desktop/dist/*.AppImage
+            packages/desktop/dist/*.deb
+            packages/desktop/dist/*.rpm
+            packages/desktop/dist/*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: ${{ inputs.artifact_retention_days }}
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    if: ${{ inputs.publish_release }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Generate SHA256SUMS.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(find release-assets -type f -print0 | sort -z)
+          if (( ${#files[@]} == 0 )); then
+            echo "::error::没有可发布的产物"
+            exit 1
+          fi
+          sha256sum "${files[@]}" > release-assets/SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_DRAFT: ${{ inputs.release_draft }}
+          RELEASE_PRERELEASE: ${{ inputs.build_environment == 'test' || inputs.preview_identity }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG 已存在，拒绝覆盖。"
+            exit 1
+          fi
+
+          args=(release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "ZCode ${RELEASE_TAG#v}" --generate-notes)
+          if [[ "$RELEASE_DRAFT" == "true" ]]; then
+            args+=(--draft)
+          fi
+          if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+
+          mapfile -d '' files < <(find release-assets -type f -print0 | sort -z)
+          if (( ${#files[@]} == 0 )); then
+            echo "::error::没有可上传的 Release 文件"
+            exit 1
+          fi
+
+          gh "${args[@]}" "${files[@]}"
