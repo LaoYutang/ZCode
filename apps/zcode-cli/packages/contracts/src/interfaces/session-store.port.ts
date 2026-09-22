@@ -1067,6 +1067,95 @@ export interface TaskUsageQueryResult {
   inputBaselineBySource: Record<string, number>;
 }
 
+/**
+ * 计费口径的会话用量合计：`sum(computed_total_tokens)` 等，只算 `status='completed'`。
+ * `inputTokens` 已含 cache read，展示时不得再加一次。
+ * 不含失败请求的计数：在 completed 过滤下它恒为 0，留着只会误导。
+ */
+export interface SessionUsageBilledTotals {
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  modelRequestCount: number;
+}
+
+/** 最近一次完成的模型请求，供派生完成态速度（t/s）用。 */
+export interface SessionUsageLatestRequest {
+  modelId: string | null;
+  outputTokens: number;
+  durationMs: number | null;
+  timeToFirstTokenMs: number | null;
+  completedAt: number | null;
+}
+
+export interface SessionUsageModelRow {
+  modelId: string | null;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  requestCount: number;
+}
+
+export interface SessionUsageRequestRow {
+  requestId: string;
+  modelId: string | null;
+  querySource: string;
+  startedAt: number;
+  completedAt: number | null;
+  durationMs: number | null;
+  timeToFirstTokenMs: number | null;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface SessionUsageToolRow {
+  toolName: string;
+  callCount: number;
+  errorCount: number;
+  avgDurationMs: number | null;
+}
+
+/**
+ * 一个子代理会话的用量。归属靠 `session.task_type = 'subagent_child'`：
+ * 仅按 `parent_id` 会把"选择侧边会话"（`selection_side_chat`）等子会话算成子代理。
+ */
+export interface SessionUsageSubagentRow {
+  sessionId: SessionId;
+  title: string | null;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  requestCount: number;
+}
+
+export interface SessionUsageDetailQueryInput {
+  sessionID: SessionId;
+  /** 逐请求明细的返回条数上限（取最近完成的若干条）。 */
+  recentRequestLimit?: number;
+}
+
+export interface SessionUsageDetailQueryResult {
+  sessionID: SessionId;
+  /** 本会话（不含子代理会话）的计费口径合计。 */
+  billed: SessionUsageBilledTotals;
+  latestCompletedRequest: SessionUsageLatestRequest | null;
+  models: SessionUsageModelRow[];
+  recentRequests: SessionUsageRequestRow[];
+  tools: SessionUsageToolRow[];
+  toolCallCount: number;
+  toolErrorCount: number;
+  /** 子代理用量单独分块，不计入 `billed`；`totalTokens` = 各子项之和。 */
+  subagents: {
+    children: SessionUsageSubagentRow[];
+    totalTokens: number;
+  };
+  retentionDays: number;
+}
+
 export interface UsageStorePort {
   recordModelUsage(input: ModelUsageRecord): Promise<void>;
   upsertTurnUsage(input: TurnUsageRecord): Promise<void>;
@@ -1074,6 +1163,7 @@ export interface UsageStorePort {
   pruneUsage(input?: { beforeTime?: number }): Promise<void>;
   queryAppUsage(input: AppUsageQueryInput): Promise<AppUsageQueryResult>;
   queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult>;
+  querySessionUsageDetail(input: SessionUsageDetailQueryInput): Promise<SessionUsageDetailQueryResult>;
 }
 
 export interface LocalSettingStorePort {

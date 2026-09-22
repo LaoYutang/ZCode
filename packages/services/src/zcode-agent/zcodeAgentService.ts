@@ -101,9 +101,7 @@ import {
   type ZCodeTaskMode,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
-import {
-  mergeAutomationMutationToolDenylist,
-} from "#src/zcode-agent/automationToolPolicy.js";
+import { mergeAutomationMutationToolDenylist } from "#src/zcode-agent/automationToolPolicy.js";
 import { ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
 import type {
   ZCodeProtocolRequestId,
@@ -149,6 +147,7 @@ import type {
   ZCodeAgentSessionSubscribeParams,
   ZCodeAgentSessionTarget,
   ZCodeAgentSessionRuntimePreferencesRequest,
+  ZCodeAgentSessionUsageDetailParams,
   ZCodeAgentTaskTokenUsageParams,
   ZCodeAgentSetModeParams,
   ZCodeAgentSetModelParams,
@@ -252,6 +251,7 @@ import {
   v4ConversationResyncResultSchema,
   v4ConversationSubscribeResultSchema,
   v4ConversationUsageResultSchema,
+  v4ConversationUsageDetailResultSchema,
   v4SessionsIndexSubscribeResultSchema,
   v4UsageStatsResultSchema,
   v4WorkspaceConfigSubscribeResultSchema,
@@ -3002,6 +3002,20 @@ export function createZCodeAgentService(
         V4_METHODS.conversationUsage,
         { sessionId: params.sessionId },
         v4ConversationUsageResultSchema,
+      );
+    },
+
+    async getSessionUsageDetail(params: ZCodeAgentSessionUsageDetailParams) {
+      const client = await getReadOnlyClient(params);
+      // 独立于 conversationUsage 的 method：那边的 result schema 是 strict 的，
+      // 加字段会让旧渲染端解析失败；这里回的是计费口径（与 app 级用量同源）。
+      return client.request(
+        V4_METHODS.conversationUsageDetail,
+        {
+          sessionId: params.sessionId,
+          ...(params.recentRequestLimit ? { recentRequestLimit: params.recentRequestLimit } : {}),
+        },
+        v4ConversationUsageDetailResultSchema,
       );
     },
 

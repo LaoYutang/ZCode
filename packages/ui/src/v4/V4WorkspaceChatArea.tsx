@@ -16,6 +16,7 @@ import type {
   OpenScopedSubagentDirectorySideTabRequest,
   OpenSelectionSideChatRequest,
   OpenScopedPlanDetailSideTabRequest,
+  OpenScopedUsageSideTabRequest,
   OpenScopedWorkflowArtifactSideTabRequest,
   OpenScopedWorkflowRunSideTabRequest,
   OpenScopedWorkflowActorSessionSideTabRequest,
@@ -113,6 +114,7 @@ interface V4WorkspaceChatAreaProps {
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
+  onOpenUsage?: (request: OpenScopedUsageSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   onOpenWorkflowArtifact?: (request: OpenScopedWorkflowArtifactSideTabRequest) => void;
   onOpenWorkflowRunDirectory?: (request: OpenScopedWorkflowRunDirectorySideTabRequest) => void;
@@ -174,6 +176,7 @@ export function V4WorkspaceChatArea({
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
   onOpenPlanDetail,
+  onOpenUsage,
   onOpenWorkflowRun,
   onOpenWorkflowArtifact,
   onOpenWorkflowRunDirectory,
@@ -299,6 +302,7 @@ export function V4WorkspaceChatArea({
       onSyncSubagentSessionTabs,
       onOpenSelectionSideChat,
       onOpenPlanDetail,
+      onOpenUsage,
       onOpenWorkflowRun,
       onOpenWorkflowArtifact,
       onOpenWorkflowRunDirectory,
@@ -344,6 +348,7 @@ export function V4WorkspaceChatArea({
       onSyncSubagentSessionTabs,
       onOpenSelectionSideChat,
       onOpenPlanDetail,
+      onOpenUsage,
       onOpenWorkflowRun,
       onOpenWorkflowArtifact,
       onOpenWorkflowRunDirectory,

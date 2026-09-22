@@ -6,15 +6,28 @@ import type {
   AppUsageQueryInput,
   AppUsageQueryResult,
   AppUsageToolRow,
+  ModelUsageRecord,
+  SessionId,
+  SessionUsageBilledTotals,
+  SessionUsageDetailQueryInput,
+  SessionUsageDetailQueryResult,
+  SessionUsageLatestRequest,
+  SessionUsageModelRow,
+  SessionUsageRequestRow,
+  SessionUsageSubagentRow,
+  SessionUsageToolRow,
   TaskUsageQueryInput,
   TaskUsageQueryResult,
-  ModelUsageRecord,
   ToolUsageRecord,
   TurnUsageRecord,
 } from "@zcode/contracts";
 import { encodeJson } from "../json.js";
 
-const USAGE_RETENTION_DAYS = 30;
+/**
+ * 用量事件的保留期：写入时按此裁剪（`pruneUsage`），所以会话用量只是"近 N 天"。
+ * 随查询结果一并返回，避免 UI 另行硬编码一个数字。
+ */
+export const USAGE_RETENTION_DAYS = 30;
 const USAGE_RETENTION_MS = USAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 export async function recordModelUsage(db: DatabaseSync, input: ModelUsageRecord): Promise<void> {
@@ -670,6 +683,201 @@ export async function queryTaskUsage(
     modelRequestCount: rows.length,
     modelErrorCount,
     inputBaselineBySource,
+  };
+}
+
+/**
+ * 会话用量明细（状态条/用量面板的数据源）。
+ *
+ * 与 `queryTaskUsage` 的区别是口径而非形状：这里一律是**计费口径**
+ * （`sum(computed_total_tokens)` 原始求和，与 `queryAppUsage` 同源），而 `queryTaskUsage`
+ * 是"前缀只计一次"的增量口径。两种口径能差数倍（长会话里共享前缀只算一次 vs 每次请求
+ * 都计一整份 input），所以展示值只允许取这里的 `billed`，不要在 UI 层混用。
+ *
+ * 只统计 `status='completed'`：实测库中 token 全部落在 completed 行（cancelled/running 都为 0），
+ * 排除非 completed 同时挡掉在途请求，避免同一条请求在完成前后被计两次。
+ */
+export async function querySessionUsageDetail(
+  db: DatabaseSync,
+  input: SessionUsageDetailQueryInput,
+): Promise<SessionUsageDetailQueryResult> {
+  const recentRequestLimit = Math.max(1, Math.trunc(input.recentRequestLimit ?? 20));
+
+  // 按模型分组，同时作为计费合计的唯一来源：合计由分组结果折叠得出，
+  // 保证"按模型子项之和 = 合计"恒成立，不在 UI 层再做一次加法。
+  const modelRows = db
+    .prepare(
+      `select
+         model_id as modelId,
+         coalesce(sum(computed_total_tokens), 0) as totalTokens,
+         coalesce(sum(input_tokens), 0) as inputTokens,
+         coalesce(sum(output_tokens), 0) as outputTokens,
+         coalesce(sum(reasoning_tokens), 0) as reasoningTokens,
+         coalesce(sum(cache_creation_input_tokens), 0) as cacheCreationTokens,
+         coalesce(sum(cache_read_input_tokens), 0) as cacheReadTokens,
+         count(*) as requestCount
+       from model_usage
+       where session_id = ? and status = 'completed'
+       group by modelId
+       order by totalTokens desc`,
+    )
+    .all(input.sessionID) as Array<{
+    modelId: string | null;
+    totalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    reasoningTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    requestCount: number;
+  }>;
+
+  const billed: SessionUsageBilledTotals = {
+    totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    modelRequestCount: 0,
+  };
+  const models: SessionUsageModelRow[] = [];
+  for (const row of modelRows) {
+    billed.totalTokens += integer(row.totalTokens);
+    billed.inputTokens += integer(row.inputTokens);
+    billed.outputTokens += integer(row.outputTokens);
+    billed.reasoningTokens += integer(row.reasoningTokens);
+    billed.cacheCreationTokens += integer(row.cacheCreationTokens);
+    billed.cacheReadTokens += integer(row.cacheReadTokens);
+    billed.modelRequestCount += integer(row.requestCount);
+    models.push({
+      modelId: row.modelId,
+      totalTokens: integer(row.totalTokens),
+      inputTokens: integer(row.inputTokens),
+      outputTokens: integer(row.outputTokens),
+      requestCount: integer(row.requestCount),
+    });
+  }
+
+  const recentRequests = db
+    .prepare(
+      `select
+         id as requestId,
+         model_id as modelId,
+         query_source as querySource,
+         started_at as startedAt,
+         completed_at as completedAt,
+         duration_ms as durationMs,
+         time_to_first_token_ms as timeToFirstTokenMs,
+         computed_total_tokens as totalTokens,
+         input_tokens as inputTokens,
+         output_tokens as outputTokens
+       from model_usage
+       where session_id = ? and status = 'completed'
+       order by completed_at desc, started_at desc, id desc
+       limit ?`,
+    )
+    .all(input.sessionID, recentRequestLimit) as unknown as SessionUsageRequestRow[];
+
+  const latest = recentRequests[0];
+  const latestCompletedRequest: SessionUsageLatestRequest | null = latest
+    ? {
+        modelId: latest.modelId,
+        outputTokens: integer(latest.outputTokens),
+        durationMs: latest.durationMs ?? null,
+        timeToFirstTokenMs: latest.timeToFirstTokenMs ?? null,
+        completedAt: latest.completedAt ?? null,
+      }
+    : null;
+
+  // 与 queryAppUsage 的 tools 分块保持同一语义：统计的是"已调度的工具调用"，
+  // 不按 status 过滤，所以会话级与全应用级的工具计数可以直接对账。
+  const tools = db
+    .prepare(
+      `select
+         tool_name as toolName,
+         count(*) as callCount,
+         coalesce(sum(case when status = 'error' then 1 else 0 end), 0) as errorCount,
+         avg(duration_ms) as avgDurationMs
+       from tool_usage
+       where session_id = ?
+       group by tool_name
+       order by callCount desc`,
+    )
+    .all(input.sessionID) as unknown as SessionUsageToolRow[];
+
+  let toolCallCount = 0;
+  let toolErrorCount = 0;
+  for (const row of tools) {
+    toolCallCount += integer(row.callCount);
+    toolErrorCount += integer(row.errorCount);
+  }
+
+  // 子代理归属必须用 task_type：实测库里"选择侧边会话"（selection_side_chat）同样带 parent_id
+  // 且消耗可观，只按 parent_id 关联会把它算成子代理。也不能只认 `sess_subagent_` id 前缀——
+  // 该前缀与 task_type 的集合并不相等。
+  const childRows = db
+    .prepare(
+      `select
+         s.id as sessionId,
+         s.title as title,
+         coalesce(sum(m.computed_total_tokens), 0) as totalTokens,
+         coalesce(sum(m.input_tokens), 0) as inputTokens,
+         coalesce(sum(m.output_tokens), 0) as outputTokens,
+         count(*) as requestCount
+       from session s
+       join model_usage m on m.session_id = s.id
+       where s.parent_id = ?
+         and s.task_type = 'subagent_child'
+         and m.status = 'completed'
+       group by s.id
+       order by totalTokens desc`,
+    )
+    .all(input.sessionID) as Array<{
+    sessionId: SessionId;
+    title: string | null;
+    totalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    requestCount: number;
+  }>;
+
+  const children: SessionUsageSubagentRow[] = [];
+  let subagentTotalTokens = 0;
+  for (const row of childRows) {
+    const totalTokens = integer(row.totalTokens);
+    subagentTotalTokens += totalTokens;
+    children.push({
+      sessionId: row.sessionId,
+      title: row.title ?? null,
+      totalTokens,
+      inputTokens: integer(row.inputTokens),
+      outputTokens: integer(row.outputTokens),
+      requestCount: integer(row.requestCount),
+    });
+  }
+
+  return {
+    sessionID: input.sessionID,
+    billed,
+    latestCompletedRequest,
+    models,
+    recentRequests: recentRequests.map((row) => ({
+      ...row,
+      totalTokens: integer(row.totalTokens),
+      inputTokens: integer(row.inputTokens),
+      outputTokens: integer(row.outputTokens),
+    })),
+    tools: tools.map((row) => ({
+      toolName: row.toolName,
+      callCount: integer(row.callCount),
+      errorCount: integer(row.errorCount),
+      avgDurationMs: row.avgDurationMs ?? null,
+    })),
+    toolCallCount,
+    toolErrorCount,
+    subagents: { children, totalTokens: subagentTotalTokens },
+    retentionDays: USAGE_RETENTION_DAYS,
   };
 }
 

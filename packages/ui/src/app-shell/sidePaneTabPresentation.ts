@@ -66,6 +66,7 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   }
   if (tab.type === "terminal" || tab.type === "bash-output")
     return `${tab.title} terminal shell command`;
+  if (tab.type === "usage") return "usage tokens context speed session total";
   return tab.source.path ?? tab.source.title;
 }
 

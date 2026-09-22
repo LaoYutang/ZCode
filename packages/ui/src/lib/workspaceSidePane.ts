@@ -203,6 +203,28 @@ export interface OpenPlanDetailSideTabRequest {
 }
 
 /**
+ * 会话用量明细 tab。
+ *
+ * 身份是**会话**（`parentSessionId`）：用量按会话唯一（一窗格一会话），不像 plan-detail 那样
+ * 还有第二维。刻意不带任何查询结果字段——它读的是 CLI 侧聚合（`v4/conversation/usageDetail`），
+ * 而 tab 里的既存字段只允许承载冻结的展示输入（同 plan-detail 的 `markdown` fallback）。
+ *
+ * 可见性按 `parentSessionId` 收窄（同 plan-detail）：切到别的会话时 tab 自动不可见，
+ * 不会把上一个会话的用量留在新会话旁边。
+ */
+export interface UsageSidePaneTab {
+  id: string;
+  type: "usage";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  parentSessionId: string;
+}
+
+/**
  * workflow run 的详情页 tab。
  *
  * 身份是 **run**（`runId`），不是发起它的工具调用：一次 CreateWorkflow 只启一个 run，
@@ -472,6 +494,16 @@ export interface OpenScopedPlanDetailSideTabRequest extends OpenPlanDetailSideTa
   remoteSessionId?: string;
 }
 
+export interface OpenUsageSideTabRequest {
+  parentSessionId: string;
+}
+
+export interface OpenScopedUsageSideTabRequest extends OpenUsageSideTabRequest {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
 export interface OpenSelectionSideChatRequest {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -528,6 +560,7 @@ export type WorkspaceSidePaneTab =
   | SubagentDirectorySidePaneTab
   | SelectionSideChatPaneTab
   | PlanDetailSidePaneTab
+  | UsageSidePaneTab
   | WorkflowRunSidePaneTab
   | WorkflowRunDirectorySidePaneTab
   | WorkflowActorSessionSidePaneTab
@@ -796,6 +829,26 @@ function createPlanDetailSidePaneTab(
     toolCallId: options.toolCallId,
     markdown: options.markdown,
     ...(options.planFilePath ? { planFilePath: options.planFilePath } : {}),
+  };
+}
+
+function createUsageSidePaneTab(
+  options: OpenScopedUsageSideTabRequest & { workspaceKey: string },
+): UsageSidePaneTab {
+  return {
+    // 结构化 id：同一 workspace + 会话永远同一个 tab，重复点击幂等。
+    id: [
+      "usage",
+      encodeSidePaneTabIdPart(options.workspaceKey),
+      encodeSidePaneTabIdPart(options.parentSessionId),
+    ].join(":"),
+    type: "usage",
+    openedAt: Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+    parentSessionId: options.parentSessionId,
   };
 }
 
@@ -1121,6 +1174,7 @@ function getVisibleSidePaneTabsByScope(
     if (
       tab.type === "selection-side-chat" ||
       tab.type === "plan-detail" ||
+      tab.type === "usage" ||
       tab.type === "workflow-run" ||
       tab.type === "workflow-actor-session" ||
       tab.type === "workflow-workspace" ||
@@ -1745,6 +1799,24 @@ export function openPlanDetailSidePane(
 }
 
 /**
+ * 打开或复用一个会话用量 tab。
+ *
+ * 复用规则与 plan-detail 同构（结构化 id 幂等），同样**没有 GC**：用量是会话级事实，
+ * 不随投影淘汰或对话改写失效；tab 只需按 `parentSessionId` 收窄可见性。
+ * 被改写/回滚的会话也用同一个 tab 显示新数字，不需要重建。
+ */
+export function openUsageSidePane(
+  current: WorkspaceSidePaneState | null,
+  options: OpenScopedUsageSideTabRequest & { workspaceKey: string },
+): WorkspaceSidePaneState {
+  const nextTab = createUsageSidePaneTab(options);
+  const existing = current?.tabs.find(
+    (tab): tab is UsageSidePaneTab => tab.type === "usage" && tab.id === nextTab.id,
+  );
+  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+/**
  * 打开或复用一个 workflow run 详情 tab。
  *
  * 复用规则与 plan-detail 同构（结构化 id 幂等），刻意也**同样没有 GC**：事件日志读的是
@@ -1903,6 +1975,7 @@ export function isSidePaneTabVisibleForParent(
   if (
     tab.type === "selection-side-chat" ||
     tab.type === "plan-detail" ||
+    tab.type === "usage" ||
     tab.type === "workflow-run" ||
     tab.type === "workflow-directory" ||
     tab.type === "workflow-actor-session" ||

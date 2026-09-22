@@ -233,6 +233,8 @@ import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import type {
   OpenPlanDetailSideTabRequest,
   OpenScopedPlanDetailSideTabRequest,
+  OpenScopedUsageSideTabRequest,
+  OpenUsageSideTabRequest,
   OpenWorkflowRunSideTabRequest,
   OpenWorkflowRunDirectorySideTabRequest,
   OpenScopedWorkflowActorSessionSideTabRequest,
@@ -341,6 +343,7 @@ export interface SessionPaneProps {
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
+  onOpenUsage?: (request: OpenScopedUsageSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   /** 通知行的产物 chip → 全尺寸查看 tab。 */
   onOpenWorkflowArtifact?: (request: OpenScopedWorkflowArtifactSideTabRequest) => void;
@@ -517,6 +520,7 @@ export function SessionPane({
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
   onOpenPlanDetail,
+  onOpenUsage,
   onOpenWorkflowRun,
   onOpenWorkflowArtifact,
   onOpenWorkflowRunDirectory,
@@ -1716,6 +1720,18 @@ export function SessionPane({
       });
     },
     [onOpenPlanDetail, remoteSessionId, workspaceIdentity, workspacePath],
+  );
+  // 用量 tab 与 plan-detail 同构：卡片只发意图（本会话 id），scope 由宿主补齐。
+  const handleOpenUsage = useCallback(
+    (request: OpenUsageSideTabRequest) => {
+      onOpenUsage?.({
+        ...request,
+        workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+        ...(remoteSessionId ? { remoteSessionId } : {}),
+      });
+    },
+    [onOpenUsage, remoteSessionId, workspaceIdentity, workspacePath],
   );
   // 与 plan-detail 完全同构：卡片只发意图（runId + toolCallId + 展示名），
   // 会话与 workspace 身份一律由宿主（这里）补齐，卡片不感知 scope。
@@ -3802,6 +3818,7 @@ export function SessionPane({
         backgroundWorks: snapshot?.backgroundWorks ?? [],
         runningSubagents: subagents.running,
         workflowRuns: snapshot?.workflowRuns?.runs ?? [],
+        usageContextWindow: snapshot?.usage.contextWindow ?? null,
       }),
     [
       isOfficeMode,
@@ -3811,6 +3828,7 @@ export function SessionPane({
       snapshot?.backgroundWorks,
       snapshot?.goal,
       snapshot?.plan,
+      snapshot?.usage.contextWindow,
       snapshot?.workflowRuns,
       state.sessionPlans,
       selectionSideChat,
@@ -4537,6 +4555,8 @@ export function SessionPane({
             runningSubagents={subagents.running}
             workflowRuns={snapshot?.workflowRuns?.runs ?? []}
             endedSubagentCount={subagents.endedTotal}
+            remoteSessionId={remoteSessionId ?? undefined}
+            usageContextWindow={snapshot?.usage.contextWindow ?? null}
             rootSessionId={rootSessionId ?? sessionId ?? undefined}
             parentSessionId={sessionId ?? undefined}
             layoutMode={statusPanelLayout}
@@ -4561,6 +4581,7 @@ export function SessionPane({
                 : undefined
             }
             onOpenPlanDetail={onOpenPlanDetail ? handleOpenPlanDetail : undefined}
+            onOpenUsage={onOpenUsage ? handleOpenUsage : undefined}
             onOpenBackgroundBash={
               onOpenBackgroundBash && sessionId
                 ? (work) =>

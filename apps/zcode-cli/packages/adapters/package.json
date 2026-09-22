@@ -94,6 +94,7 @@
   "scripts": {
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
+    "test": "node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src"

@@ -46,6 +46,8 @@ import type {
   SessionTaskLinkRecord,
   SessionRevert,
   SessionStorePort,
+  SessionUsageDetailQueryInput,
+  SessionUsageDetailQueryResult,
   SharedContextImportCommitBundle,
   SharedContextImportTransition,
   TaskUsageQueryInput,
@@ -857,6 +859,12 @@ export class SqliteSessionStore
 
   async queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult> {
     return usageRepository.queryTaskUsage(this.db, input);
+  }
+
+  async querySessionUsageDetail(
+    input: SessionUsageDetailQueryInput,
+  ): Promise<SessionUsageDetailQueryResult> {
+    return usageRepository.querySessionUsageDetail(this.db, input);
   }
 
   async recordInputHistory(input: {

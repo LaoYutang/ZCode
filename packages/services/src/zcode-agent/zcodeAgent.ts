@@ -3,6 +3,7 @@ import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@zcode/sh
 import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
 import type { AppUsageRange, AppUsageSnapshot, ZCodeTaskTokenUsageResult } from "@zcode/shared";
+import type { V4ConversationUsageDetailResult } from "@zcode/shared/zcode-protocol-v4";
 import type { ZCodeAutomation, ZCodeAutomationRun } from "@zcode/shared";
 import type {
   ZCodeStorageStartupState,
@@ -224,6 +225,14 @@ export interface ZCodeAgentAppUsageParams {
 }
 
 export interface ZCodeAgentTaskTokenUsageParams extends ZCodeAgentSessionTarget {}
+
+/**
+ * 会话用量明细：计费口径（与 app 级用量同源），可选限制逐请求明细条数。
+ * 与 `ZCodeAgentTaskTokenUsageParams` 的增量口径是两套数字，不要混用。
+ */
+export interface ZCodeAgentSessionUsageDetailParams extends ZCodeAgentSessionTarget {
+  recentRequestLimit?: number;
+}
 
 export interface ZCodeAgentReadSessionParams extends ZCodeAgentSessionTarget {
   deliveryKind?: ZCodeDeliveryKind;
@@ -588,6 +597,9 @@ export interface IZCodeAgentService {
   ): Promise<ZCodeSessionSubagentsResult>;
   getAppUsageStats(params: ZCodeAgentAppUsageParams): Promise<AppUsageSnapshot>;
   getTaskTokenUsage(params: ZCodeAgentTaskTokenUsageParams): Promise<ZCodeTaskTokenUsageResult>;
+  getSessionUsageDetail(
+    params: ZCodeAgentSessionUsageDetailParams,
+  ): Promise<V4ConversationUsageDetailResult>;
   readSession(params: ZCodeAgentReadSessionParams): Promise<ZCodeSessionStateSnapshot>;
   readSessionMessages(
     params: ZCodeAgentReadSessionMessagesParams,

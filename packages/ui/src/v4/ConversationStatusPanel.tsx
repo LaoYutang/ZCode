@@ -25,6 +25,7 @@ import {
   CircleIcon,
   EllipsisIcon,
   FileDiffIcon,
+  GaugeIcon,
   GoalIcon,
   ListChecksIcon,
   Maximize2Icon,
@@ -51,9 +52,15 @@ import type {
   BackgroundWorkSummary,
   GoalState,
   PlanState,
+  SessionUsageState,
   ToolCallRow,
+  V4ConversationUsageDetailResult,
   WorkflowRunState,
 } from "@zcode/shared/zcode-protocol-v4";
+import { calculateOutputTps } from "@zcode/shared";
+import { useSessionUsageDetail } from "@/hooks/useSessionUsageDetail.js";
+import { formatCompactTokenUsage } from "@/settings/usage-stats/usageStatsUiParts.js";
+import type { OpenUsageSideTabRequest } from "@/lib/workspaceSidePane.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -123,6 +130,13 @@ interface ConversationStatusPanelProps {
    */
   endedWorkflowRunCount?: number;
   endedSubagentCount?: number;
+  /** 本 pane 的远端会话标识：用量查询按它选远端 client，不能只按路径匹配。 */
+  remoteSessionId?: string;
+  /** 本会话上下文容量读数（live 投影）；会话累计用量不在这里，走用量查询。 */
+  usageContextWindow?: SessionUsageState["contextWindow"] | null;
+  /** 用量重新拉取的触发键：主轮请求完成或子代理变化时恰好变化一次。 */
+  usageRefreshKey?: string;
+  onOpenUsage?: (request: OpenUsageSideTabRequest) => void;
   rootSessionId?: string;
   parentSessionId?: string;
   /** 当前 pane 是否由手机 Web 远控壳承载。 */
@@ -232,7 +246,8 @@ type StatusSectionKind =
   | "plan"
   | "terminal"
   | "workflow"
-  | "agent";
+  | "agent"
+  | "usage";
 
 const STATUS_SECTION_SCROLL_POLICY = {
   environment: null,
@@ -244,6 +259,8 @@ const STATUS_SECTION_SCROLL_POLICY = {
   // workflow 行与 terminal / agent 行同高（两行 + 控制），限高沿用同一档。
   workflow: "max-h-48",
   agent: "max-h-48",
+  // 用量区最多三行 + 一个入口行；限高与 agent 同档，超出只滚动这一区。
+  usage: "max-h-48",
 } as const satisfies Record<StatusSectionKind, string | null>;
 
 function StatusSectionHeader({
@@ -1015,6 +1032,109 @@ function RunningStatusItem({
   );
 }
 
+function UsageMetricRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-ui-base text-[var(--color-foreground)]">
+      <span className="min-w-0 flex-1 truncate text-[var(--color-foreground-subtle)]">{label}</span>
+      <span className="shrink-0 font-mono tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * 用量分区（本会话）。
+ *
+ * 数据分两路，各有各的所有者：容量是 live 投影（由宿主传进来，面板不自己取 lease）；
+ * 会话合计与完成态速度来自一次 RPC 查询——`snapshot.usage.cumulative` 是进程级计数，
+ * 冷恢复后归零，不能当会话总量。
+ *
+ * 查不到（旧宿主）或没有数据时只隐藏对应行，**不退回另一种口径**：`v4/conversation/usage`
+ * 是"前缀只算一次"的增量口径，顶上来会得到与设置→用量对不上的数字。
+ */
+function UsageStatusSection({
+  detail,
+  model,
+  onOpenUsage,
+  parentSessionId,
+  separated,
+  unsupported,
+}: {
+  detail: V4ConversationUsageDetailResult | null;
+  model: ConversationStatusPanelModel;
+  onOpenUsage?: (request: OpenUsageSideTabRequest) => void;
+  parentSessionId?: string;
+  separated: boolean;
+  unsupported: boolean;
+}) {
+  const { intl, locale } = useZCodeIntl();
+  const contextWindow = model.usageContextWindow;
+  const latest = detail?.latestCompletedRequest ?? null;
+  const tps =
+    latest && latest.durationMs !== null && latest.timeToFirstTokenMs !== null
+      ? calculateOutputTps(latest.outputTokens, latest.durationMs - latest.timeToFirstTokenMs)
+      : null;
+  const canOpenDetail = Boolean(onOpenUsage && parentSessionId);
+
+  // 用量区在没有容量读数、没有查询结果时只留入口行——两者都没有才整区不渲染。
+  const hasUsageNumbers = Boolean(contextWindow) || Boolean(detail);
+  if (!hasUsageNumbers && !canOpenDetail) return null;
+
+  const contextValue = contextWindow
+    ? `${formatCompactTokenUsage(locale, contextWindow.usedTokens)} / ${
+        contextWindow.maxTokens === null
+          ? "--"
+          : formatCompactTokenUsage(locale, contextWindow.maxTokens)
+      }`
+    : null;
+
+  return (
+    <StatusSection
+      section="usage"
+      separated={separated}
+      title={intl.formatMessage({ id: "chat.statusPanel.usage" })}
+    >
+      {contextValue ? (
+        <UsageMetricRow
+          label={intl.formatMessage({ id: "chat.statusPanel.usageContext" })}
+          value={contextValue}
+        />
+      ) : null}
+      {tps === null ? null : (
+        <UsageMetricRow
+          label={intl.formatMessage({ id: "chat.statusPanel.usageSpeed" })}
+          value={`${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(tps)} t/s`}
+        />
+      )}
+      {detail && detail.billed.modelRequestCount > 0 ? (
+        <UsageMetricRow
+          label={intl.formatMessage({ id: "chat.statusPanel.usageTotal" })}
+          value={formatCompactTokenUsage(locale, detail.billed.totalTokens)}
+        />
+      ) : null}
+      {unsupported ? (
+        <UsageMetricRow
+          label={intl.formatMessage({ id: "chat.statusPanel.usageUnavailable" })}
+          value="--"
+        />
+      ) : null}
+      {canOpenDetail ? (
+        <button
+          type="button"
+          data-usage-open="true"
+          onClick={() => onOpenUsage?.({ parentSessionId: parentSessionId as string })}
+          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-ui-base text-[var(--color-foreground-subtle)] hover:bg-[var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-input-border-focused)]"
+        >
+          <GaugeIcon className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">
+            {intl.formatMessage({ id: "chat.statusPanel.openUsage" })}
+          </span>
+          <ChevronRightIcon className="size-3.5 shrink-0" />
+        </button>
+      ) : null}
+    </StatusSection>
+  );
+}
+
 function BackgroundWorkStatusSection({
   onOpenBackgroundBash,
   onCancelBackgroundWork,
@@ -1562,14 +1682,17 @@ function StatusSummaryRow({
   gitWorktreeChangeSummary,
   model,
   onVariantChange,
+  usageTotalTokens = null,
 }: {
   /** 已结束 run 的目录计数；宿主给 0 表示目录入口不可渲染（缺会话或缺回调）。 */
   endedWorkflowRunCount: number;
   gitWorktreeChangeSummary?: { added: number; removed: number } | null;
   model: ConversationStatusPanelModel;
   onVariantChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
+  /** 本会话计费口径合计；null 表示没有（或查不到），此时不占用胶囊。 */
+  usageTotalTokens?: number | null;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl, locale } = useZCodeIntl();
   const expandLabel = intl.formatMessage({ id: "chat.summaryPanel.showPanel" });
   const currentPlanItem = getCurrentPlanItem(model.plan);
   const completedPlanItem = getCompletedPlanItem(model.plan);
@@ -1683,7 +1806,20 @@ function StatusSummaryRow({
         {endedWorkflowRunCount}
       </span>
     </StatusSummaryMetric>
-  ) : null;
+  ) : usageTotalTokens === null ? null : (
+    // 兜底链最后一档：用量是"有数据就希望看得见"的常驻信息，但它必须让位给
+    // Goal/Todo/Git/活动计数这些主状态，所以排在终态 run 之后。
+    <StatusSummaryMetric
+      icon={<GaugeIcon className="size-4 text-[var(--color-foreground-subtle)]" />}
+    >
+      <span className="min-w-0 truncate">
+        {intl.formatMessage({ id: "chat.statusPanel.usage" })}
+      </span>
+      <span className="shrink-0 font-mono tabular-nums text-[var(--color-foreground-subtle)]">
+        {formatCompactTokenUsage(locale, usageTotalTokens)}
+      </span>
+    </StatusSummaryMetric>
+  );
 
   if (!summaryMetric) {
     return null;
@@ -1719,6 +1855,10 @@ function ConversationStatusPanelImpl({
   workflowRuns = EMPTY_WORKFLOW_RUNS,
   endedWorkflowRunCount = 0,
   endedSubagentCount = 0,
+  remoteSessionId,
+  usageContextWindow,
+  usageRefreshKey,
+  onOpenUsage,
   rootSessionId,
   parentSessionId,
   isMobileViewport = false,
@@ -1761,6 +1901,7 @@ function ConversationStatusPanelImpl({
         backgroundWorks,
         runningSubagents,
         workflowRuns,
+        usageContextWindow,
       }),
     [
       isOfficeMode,
@@ -1773,12 +1914,25 @@ function ConversationStatusPanelImpl({
       plan,
       runningSubagents,
       workflowRuns,
+      usageContextWindow,
       workspacePath,
     ],
   );
   const variant = resolveConversationStatusPanelVariant({
     variantOverride: summaryPanelVariantOverride ?? null,
   });
+  // 面板层只取一次用量：展开态分区与收起态胶囊消费同一份结果，
+  // 也保证两处显示的口径不可能分叉。
+  const { detail: usageDetail, unsupported: usageUnsupported } = useSessionUsageDetail({
+    enabled: Boolean(parentSessionId),
+    refreshKey: usageRefreshKey,
+    sessionId: parentSessionId ?? null,
+    workspacePath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    ...(remoteSessionId ? { remoteSessionId } : {}),
+  });
+  const usageTotalTokens =
+    usageDetail && usageDetail.billed.modelRequestCount > 0 ? usageDetail.billed.totalTokens : null;
   const isVariantAutomatic = summaryPanelVariantOverride == null;
   const useVerticalFloatingPanels = false;
   const panelModeValue = isVariantAutomatic ? "auto" : variant;
@@ -1810,6 +1964,9 @@ function ConversationStatusPanelImpl({
   // 已结束目录入口过去渲染在 Agent StatusSection 之后，视觉和 DOM 都被提升成
   // 并列顶层 section。Agent 的运行态和已结束目录属于同一领域，统一由 Agent 折叠分组承载。
   const canRenderAgents = model.runningSubagentWorks.length > 0 || canRenderEndedAgents;
+  // 用量区只要拿到容量读数（live）或有查询结果就渲染；它的入口行还会单独开门，
+  // 保证旧宿主下也能进明细页看到"不支持"的说明而不是什么都没有。
+  const canRenderUsage = Boolean(model.usageContextWindow) || Boolean(parentSessionId);
   const handlePanelModeChange = useCallback(
     (value: string) => {
       if (value === "auto") {
@@ -2054,6 +2211,24 @@ function ConversationStatusPanelImpl({
                 onOpenSubagentDirectory={onOpenSubagentDirectory}
               />
             ) : null}
+            {canRenderUsage ? (
+              <UsageStatusSection
+                model={model}
+                detail={usageDetail}
+                unsupported={usageUnsupported}
+                separated={
+                  canRenderGit ||
+                  canRenderGoal ||
+                  canRenderSessionPlans ||
+                  canRenderPlan ||
+                  canRenderTerminals ||
+                  canRenderWorkflows ||
+                  canRenderAgents
+                }
+                parentSessionId={parentSessionId}
+                {...(onOpenUsage ? { onOpenUsage } : {})}
+              />
+            ) : null}
           </div>
         ) : null}
         <div
@@ -2074,6 +2249,7 @@ function ConversationStatusPanelImpl({
             // 胶囊也就不该报一个点了没反应的数。
             endedWorkflowRunCount={canRenderEndedWorkflows ? endedWorkflowRunCount : 0}
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
+            usageTotalTokens={usageTotalTokens}
             onVariantChange={onVariantChange}
           />
         </div>

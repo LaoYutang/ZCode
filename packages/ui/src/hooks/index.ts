@@ -54,3 +54,4 @@ export { useGitActions } from "./useGitActions.js";
 export { useTaskNativeSessionLogFile } from "./useTaskNativeSessionLogFile.js";
 export { useTaskSessionFilePath } from "./useTaskSessionFilePath.js";
 export { useAppUsageStats } from "./useUsageStats.js";
+export { useSessionUsageDetail } from "./useSessionUsageDetail.js";

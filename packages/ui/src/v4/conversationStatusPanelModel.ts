@@ -4,6 +4,7 @@ import type {
   GoalState,
   PlanState,
   RunningSubagentSummary,
+  SessionUsageState,
   ToolCallRow,
   WorkflowRunState,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -115,6 +116,11 @@ export interface ConversationStatusPanelModel {
   runningBashWorks: BackgroundWorkSummary[];
   runningSubagentWorks: ConversationStatusPanelRunningSubagent[];
   runningWorkflowRuns: ConversationStatusPanelWorkflowRun[];
+  /**
+   * 本会话的上下文容量读数（live 投影）。只承载"这一轮到底用了多少上下文"，
+   * 会话累计用量不在这里：它是进程级计数，冷恢复后归零，真实累计要走 RPC 查询。
+   */
+  usageContextWindow: SessionUsageState["contextWindow"] | null;
 }
 
 interface BuildConversationStatusPanelModelInput {
@@ -129,6 +135,7 @@ interface BuildConversationStatusPanelModelInput {
   backgroundWorks?: readonly BackgroundWorkSummary[];
   runningSubagents?: readonly RunningSubagentSummary[];
   workflowRuns?: readonly WorkflowRunState[];
+  usageContextWindow?: SessionUsageState["contextWindow"] | null;
 }
 
 function buildGitModel({
@@ -362,6 +369,8 @@ export function buildConversationStatusPanelModel(
 
   const runningWorkflowRuns = buildRunningWorkflowRuns(input.workflowRuns, workflowWorkByWorkId);
 
+  const usageContextWindow = input.usageContextWindow ?? null;
+
   return {
     git,
     goal,
@@ -370,6 +379,10 @@ export function buildConversationStatusPanelModel(
     runningBashWorks,
     runningSubagentWorks,
     runningWorkflowRuns,
+    usageContextWindow,
+    // 用量也算"有内容"：否则只有对话的会话整块面板（含胶囊）不会出现，
+    // 而这个功能正是要在那种会话里可见。冷恢复时 contextWindow 由 seed 回填，
+    // 因此重启后打开旧会话依然成立。
     hasContent: Boolean(
       git ||
       goal ||
@@ -377,7 +390,8 @@ export function buildConversationStatusPanelModel(
       plan ||
       runningBashWorks.length > 0 ||
       runningSubagentWorks.length > 0 ||
-      runningWorkflowRuns.length > 0,
+      runningWorkflowRuns.length > 0 ||
+      usageContextWindow,
     ),
   };
 }

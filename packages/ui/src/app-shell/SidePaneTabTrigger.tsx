@@ -8,6 +8,7 @@ import {
   BugIcon,
   FileCode2Icon,
   FileDiffIcon,
+  GaugeIcon,
   MapIcon,
   MessageSquareTextIcon,
   ListTreeIcon,
@@ -270,6 +271,11 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "plan-detail") {
     return <NotepadTextIcon className="size-3.5" />;
   }
+  // 用量 tab 由会话右侧状态面板的「用量」分区打开，那边胶囊兜底行也用 GaugeIcon：
+  // 来源与 tab 必须同形，点开不跳变。
+  if (tab.type === "usage") {
+    return <GaugeIcon className="size-3.5" />;
+  }
   // 同一条约定：来源卡片（CreateWorkflow）用 lucide Workflow，tab 必须与它一致。
   if (tab.type === "workflow-run") {
     return <WorkflowIcon className="size-3.5" />;
@@ -476,6 +482,9 @@ export function getSidePaneTabTitle(
 ): string {
   if (tab.type === "plan-detail") {
     return formatMessage({ id: "planTool.panel.planTab" });
+  }
+  if (tab.type === "usage") {
+    return formatMessage({ id: "sidePane.usage" });
   }
   // 展示名是卡片打开时冻结的兜底；run 身份始终是 runId（tab id 里那一段）。
   if (tab.type === "workflow-run") {

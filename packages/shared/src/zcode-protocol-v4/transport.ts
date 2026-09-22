@@ -340,6 +340,9 @@ export const V4_METHODS = {
   // 故收敛为 v4 query 而非 host 直连；旧词 usage/stats、session/usage 就此消费清零。
   usageStats: "v4/usage/stats",
   conversationUsage: "v4/conversation/usage",
+  // 会话用量明细（计费口径）。独立 method 而非给 conversationUsage 加字段：两边的 result
+  // schema 都是 strict 的，加字段会让旧渲染端在解析时直接失败。
+  conversationUsageDetail: "v4/conversation/usageDetail",
   // 附件事务：禁止 full-data RPC。每个 chunk 的 decoded bytes <=512KiB，
   // renderer->host Channel 与 host->CLI NDJSON 都必须逐 request 证明 <=1MiB。
   attachmentBegin: "v4/attachment/begin",
@@ -772,6 +775,104 @@ export const v4ConversationUsageResultSchema = z
   })
   .strict();
 export type V4ConversationUsageResult = z.infer<typeof v4ConversationUsageResultSchema>;
+
+// 会话用量明细：计费口径（input 已含 cache read，不得再加），只含 status='completed' 的请求。
+// 与 conversationUsage 的增量口径不同，两者不可相加、不可互相替代。
+export const v4ConversationUsageDetailParamsSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    // 逐请求明细的条数上限；缺省由 CLI 取 20。
+    recentRequestLimit: z.number().int().min(1).max(200).optional(),
+  })
+  .strict();
+export type V4ConversationUsageDetailParams = z.infer<typeof v4ConversationUsageDetailParamsSchema>;
+export const v4SessionUsageBilledTotalsSchema = z
+  .object({
+    totalTokens: z.number().int().nonnegative(),
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    reasoningTokens: z.number().int().nonnegative(),
+    cacheCreationTokens: z.number().int().nonnegative(),
+    cacheReadTokens: z.number().int().nonnegative(),
+    modelRequestCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type V4SessionUsageBilledTotals = z.infer<typeof v4SessionUsageBilledTotalsSchema>;
+export const v4ConversationUsageDetailResultSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    billed: v4SessionUsageBilledTotalsSchema,
+    latestCompletedRequest: z
+      .object({
+        modelId: z.string().nullable(),
+        outputTokens: z.number().int().nonnegative(),
+        durationMs: z.number().int().nonnegative().nullable(),
+        timeToFirstTokenMs: z.number().int().nonnegative().nullable(),
+        completedAt: z.number().int().nullable(),
+      })
+      .strict()
+      .nullable(),
+    models: z.array(
+      z
+        .object({
+          modelId: z.string().nullable(),
+          totalTokens: z.number().int().nonnegative(),
+          inputTokens: z.number().int().nonnegative(),
+          outputTokens: z.number().int().nonnegative(),
+          requestCount: z.number().int().nonnegative(),
+        })
+        .strict(),
+    ),
+    recentRequests: z.array(
+      z
+        .object({
+          requestId: z.string().min(1),
+          modelId: z.string().nullable(),
+          querySource: z.string(),
+          startedAt: z.number().int(),
+          completedAt: z.number().int().nullable(),
+          durationMs: z.number().int().nonnegative().nullable(),
+          timeToFirstTokenMs: z.number().int().nonnegative().nullable(),
+          totalTokens: z.number().int().nonnegative(),
+          inputTokens: z.number().int().nonnegative(),
+          outputTokens: z.number().int().nonnegative(),
+        })
+        .strict(),
+    ),
+    tools: z.array(
+      z
+        .object({
+          toolName: z.string(),
+          callCount: z.number().int().nonnegative(),
+          errorCount: z.number().int().nonnegative(),
+          avgDurationMs: z.number().nonnegative().nullable(),
+        })
+        .strict(),
+    ),
+    toolCallCount: z.number().int().nonnegative(),
+    toolErrorCount: z.number().int().nonnegative(),
+    subagents: z
+      .object({
+        children: z.array(
+          z
+            .object({
+              sessionId: z.string().min(1),
+              title: z.string().nullable(),
+              totalTokens: z.number().int().nonnegative(),
+              inputTokens: z.number().int().nonnegative(),
+              outputTokens: z.number().int().nonnegative(),
+              requestCount: z.number().int().nonnegative(),
+            })
+            .strict(),
+        ),
+        totalTokens: z.number().int().nonnegative(),
+      })
+      .strict(),
+    // 用量只保留最近 30 天（写入时按 retention 裁剪），展示文案不得承诺会话历史总量。
+    retentionDays: z.number().int().positive(),
+  })
+  .strict();
+export type V4ConversationUsageDetailResult = z.infer<typeof v4ConversationUsageDetailResultSchema>;
 
 // ── 附件上行事务 ──
 // UI 高层仍用 put(input)->ref；这份 full-data schema 只描述 renderer 内部调用，绝不作为

@@ -82,6 +82,7 @@ import {
   type ZCodeSessionPersistence,
   type ZCodeStateUpdatedNotification,
 } from "@zcode/shared";
+import { v4ConversationUsageDetailParamsSchema } from "@zcode/shared/zcode-protocol-v4";
 import {
   buildSessionSnapshot,
   buildWorkspaceRef,
@@ -2928,6 +2929,47 @@ export async function getTaskTokenUsage(
     modelRequestCount: usage.modelRequestCount,
     modelErrorCount: usage.modelErrorCount,
     inputBaselineBySource: usage.inputBaselineBySource,
+  };
+}
+
+/**
+ * 会话用量明细：**计费口径**（`sum(computed_total_tokens)` 原始求和，只算 completed），
+ * 与 `usage/stats` 的全应用口径同源，也与 `getTaskTokenUsage` 的增量口径不同——后者按
+ * `inputBaselineBySource` 把重复前缀只算一次，两者不可相加、不可互相替代。
+ *
+ * 取数只认请求里的 sessionId：会话不存在或没有用量时返回零值，不回退到别的会话，
+ * 也不按 workspace 或"最近活跃"去猜（多窗格场景下任何启发式都会串数据）。
+ */
+export async function getSessionUsageDetail(
+  context: ZCodeProtocolAgentServerContext,
+  rawParams: unknown,
+) {
+  const params = parseParams(v4ConversationUsageDetailParamsSchema, rawParams ?? {});
+  const usageStore = context.deps.sessionStore as Partial<UsageStorePort> | undefined;
+  // 不编造零值兜底：没有 usage store 说明宿主能力缺失，让调用方按"查询失败"处理
+  // （UI 会降级成只显示实时区），而不是让界面显示一个看起来正常的 0。
+  if (!usageStore?.querySessionUsageDetail) {
+    throw new ProtocolRequestError(
+      zcodeProtocolErrorCodes.sessionUnavailable,
+      "usage store does not support session usage detail",
+    );
+  }
+
+  const usage = await usageStore.querySessionUsageDetail({
+    sessionID: params.sessionId as SessionId,
+    ...(params.recentRequestLimit ? { recentRequestLimit: params.recentRequestLimit } : {}),
+  });
+  return {
+    sessionId: params.sessionId,
+    billed: usage.billed,
+    latestCompletedRequest: usage.latestCompletedRequest,
+    models: usage.models,
+    recentRequests: usage.recentRequests,
+    tools: usage.tools,
+    toolCallCount: usage.toolCallCount,
+    toolErrorCount: usage.toolErrorCount,
+    subagents: usage.subagents,
+    retentionDays: usage.retentionDays,
   };
 }
 
