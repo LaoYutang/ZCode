@@ -4,12 +4,7 @@ import { isAbsolute, resolve } from "node:path";
 import { app, BrowserWindow, dialog } from "electron";
 import type { WebContents } from "electron";
 import { PlatformChannels, type Locale } from "@zcode/shared";
-import {
-  extractShareImportCode,
-  extractWorkspaceOpenPath,
-  isShareImportUrl,
-  isWorkspaceOpenUrl,
-} from "./desktopDeepLinkUrl.js";
+import { extractWorkspaceOpenPath, isWorkspaceOpenUrl } from "./desktopDeepLinkUrl.js";
 import { registerLinuxDeepLinkProtocol } from "./desktopLinuxDeepLinkRegistration.js";
 
 interface DeepLinkWorkspaceGateOptions {
@@ -28,10 +23,6 @@ export interface ExternalWorkspaceOpenDialogCopy {
 const rendererReadyWebContentsIds = new Set<number>();
 let pendingOpenWorkspaceRequest: {
   path: string;
-  targetWebContentsId?: number;
-} | null = null;
-let pendingShareImportRequest: {
-  shareCode: string;
   targetWebContentsId?: number;
 } | null = null;
 
@@ -175,59 +166,9 @@ export function handleOpenWorkspacePath(
 }
 
 /**
- * 路由 zcode://share/import 外部链接。
+ * 路由 zcode://workspace/open 外部链接。
  *
- * 分享落地页（web `ConversationShareLandingPage`）会为可导入的分享下发
- * `zcode://share/import?code=...`，desktop 侧必须投递给 renderer 才能完成导入。
- * 与工作区打开同构：窗口 renderer 未就绪时先缓存，等 RendererReady 再投递。
- */
-function handleShareImportCode(
-  shareCode: string,
-  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void },
-  options: {
-    allowWithoutReadyWindow?: boolean;
-    resolveApplicationWindow?: () => BrowserWindow | null;
-  } = {},
-): boolean {
-  const targetWindow = options.resolveApplicationWindow
-    ? options.resolveApplicationWindow()
-    : (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null);
-  if (targetWindow) {
-    const targetWebContentsId = targetWindow.webContents.id;
-    if (!rendererReadyWebContentsIds.has(targetWebContentsId)) {
-      pendingShareImportRequest = { shareCode, targetWebContentsId };
-      focusDeepLinkTargetWindow(targetWindow);
-      logger.warn("[deep-link] 会话导入请求命中未就绪窗口，先缓存等待 renderer ready", {
-        windowId: targetWebContentsId,
-        shareCode,
-      });
-      return true;
-    }
-
-    targetWindow.webContents.send(PlatformChannels.ShareImport, { shareCode });
-    focusDeepLinkTargetWindow(targetWindow);
-    logger.info("[deep-link] 会话导入请求路由成功", {
-      windowId: targetWebContentsId,
-      shareCode,
-    });
-    return true;
-  }
-
-  if (!options.allowWithoutReadyWindow) {
-    logger.warn("[deep-link] 会话导入请求暂未命中窗口，已忽略", { shareCode });
-    return false;
-  }
-
-  pendingShareImportRequest = { shareCode };
-  logger.warn("[deep-link] 会话导入请求暂未命中窗口，先缓存等待 renderer ready", { shareCode });
-  return false;
-}
-
-/**
- * 路由 zcode://workspace/open 与 zcode://share/import 外部链接。
- *
- * 无账号模式只保留这两类：OAuth / 支付回调 deep link 随账号能力一并移除。
- * 会话导入不是账号功能（分享落地页面向任意接收者），必须保留。
+ * 无账号模式只保留这一类：OAuth / 支付回调 deep link 随账号能力一并移除。
  */
 export function handleDeepLink(
   url: string,
@@ -240,24 +181,6 @@ export function handleDeepLink(
   } catch {
     logger.warn("[deep-link] 无法解析 URL:", url);
     return false;
-  }
-
-  if (isShareImportUrl(parsedUrl)) {
-    const shareCode = extractShareImportCode(parsedUrl);
-    if (!shareCode) {
-      logger.warn("[deep-link] 会话导入请求缺少分享码，已忽略", {
-        host: parsedUrl.hostname,
-        path: parsedUrl.pathname,
-      });
-      return false;
-    }
-    // macOS 冷启动的 open-url 会早于首窗创建，必须缓存后再投递，否则链接被丢弃。
-    return handleShareImportCode(shareCode, logger, {
-      allowWithoutReadyWindow: true,
-      ...(options.resolveApplicationWindow
-        ? { resolveApplicationWindow: options.resolveApplicationWindow }
-        : {}),
-    });
   }
 
   if (!isWorkspaceOpenUrl(parsedUrl)) {
@@ -345,7 +268,7 @@ export function registerDeepLinkProtocol(
   }
 }
 
-/** renderer ready：投递此前缓存的工作区打开 / 会话导入请求（未命中目标窗口的条目继续保留）。 */
+/** renderer ready：投递此前缓存的工作区打开请求（未命中目标窗口的条目继续保留）。 */
 export function deliverPendingWorkspaceOpen(webContents: WebContents): void {
   rendererReadyWebContentsIds.add(webContents.id);
 
@@ -357,17 +280,6 @@ export function deliverPendingWorkspaceOpen(webContents: WebContents): void {
     webContents.send(PlatformChannels.OpenWorkspacePath, pendingOpenWorkspaceRequest.path);
     pendingOpenWorkspaceRequest = null;
   }
-
-  if (
-    pendingShareImportRequest &&
-    (pendingShareImportRequest.targetWebContentsId == null ||
-      pendingShareImportRequest.targetWebContentsId === webContents.id)
-  ) {
-    webContents.send(PlatformChannels.ShareImport, {
-      shareCode: pendingShareImportRequest.shareCode,
-    });
-    pendingShareImportRequest = null;
-  }
 }
 
 /** 窗口关闭：清理 ready 标记与绑定到该窗口的待投递请求。 */
@@ -375,8 +287,5 @@ export function clearWorkspaceDeepLinkRoutesForWindow(windowId: number): void {
   rendererReadyWebContentsIds.delete(windowId);
   if (pendingOpenWorkspaceRequest?.targetWebContentsId === windowId) {
     pendingOpenWorkspaceRequest = null;
-  }
-  if (pendingShareImportRequest?.targetWebContentsId === windowId) {
-    pendingShareImportRequest = null;
   }
 }

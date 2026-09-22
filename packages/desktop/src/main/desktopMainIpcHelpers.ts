@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import { realpath } from "node:fs/promises";
 import { normalize } from "node:path";
-import type { BrowserWindow } from "electron";
 import { shell } from "electron";
 
 type DesktopIpcLogger = {
@@ -72,23 +71,6 @@ export async function openPathInFileManager(
     return { success: false, error };
   }
   return { success: true };
-}
-
-export async function captureWindowScreenshot(senderWindow: BrowserWindow | null) {
-  if (!senderWindow || senderWindow.isDestroyed()) {
-    return null;
-  }
-
-  // 报错横幅里的反馈需要带上用户看到的现场。
-  // 这里在 main 进程截当前窗口，避免 renderer 走屏幕录制权限或只能截到局部 DOM。
-  const image = await senderWindow.webContents.capturePage();
-  const buffer = image.toPNG();
-  return {
-    dataBase64: buffer.toString("base64"),
-    filename: `zcode-error-${new Date().toISOString().replace(/[:.]/g, "-")}.png`,
-    contentType: "image/png",
-    size: buffer.byteLength,
-  };
 }
 
 async function openDarwinPathInFileManager(target: string, logger: DesktopIpcLogger) {

@@ -38,7 +38,6 @@ import type {
   RendererHeapSample,
   TelemetryRendererContext,
   TaskNotificationPayload,
-  WindowScreenshotResult,
   EmbeddedBrowserDataClearResult,
   WSLDistro,
   UpdateCheckResultPayload,
@@ -179,8 +178,6 @@ declare global {
       onTaskNotificationClick(handler: (taskId: string) => void): () => void;
       /** 打开外部 URL */
       openExternal(url: string): void;
-      /** 查询当前语言下是否存在可用的用户社群入口 */
-      canOpenCommunity(locale: Locale): Promise<boolean>;
       /** 在系统文件管理器中打开指定路径 */
       openInFileManager(path: string): Promise<{ success: boolean; error?: string }>;
       /** 使用系统默认应用打开本地文件 */
@@ -219,8 +216,6 @@ declare global {
         path?: string;
         error?: string;
       }>;
-      /** 截取当前窗口，用于错误反馈携带现场画面 */
-      captureWindowScreenshot?(): Promise<WindowScreenshotResult | null>;
       browserViewAttachGuest?(payload: {
         key: string;
         webContentsId: number;

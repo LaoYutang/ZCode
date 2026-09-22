@@ -6,28 +6,6 @@ interface ConversationShareContextReference {
   shareUrl: string;
 }
 
-/**
- * 从会话 snapshot 里取出仍可 attach 的 share handover context。
- *
- * 刻意只吃 snapshot（不接受独立参数）：这条线断过一次——composer 原本读一个平行的
- * sharedContextImport prop，而 SessionPane 从没传，于是首条消息永远不带 sharedContextRefs，
- * CLI 侧 pending→reserved→attached 一步都走不了，模型拿不到分享内容（顶部只读块却照常显示，
- * 所以肉眼看不出来）。snapshot 是 composer 必然拿到的东西，从它推导就不可能再漏接。
- *
- * legacy 形状（只有 title、没有 contextId）返回 null：没有 contextId 就无法构造
- * sharedContextRefs，attach 也就无从谈起。
- */
-export function resolveAttachableShareContext(
-  sharedContextImport:
-    | { contextId: string; title: string; shareUrl: string; status: string }
-    | { title: string }
-    | null
-    | undefined,
-): { contextId: string; title: string; shareUrl: string; status: string } | null {
-  if (!sharedContextImport || !("contextId" in sharedContextImport)) return null;
-  return sharedContextImport.status === "discarded" ? null : sharedContextImport;
-}
-
 function isReference(value: unknown): value is ConversationShareContextReference {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;

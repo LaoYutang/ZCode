@@ -12,8 +12,6 @@ import {
   IZCodeTaskService,
   IZCodeAgentService,
   IZCodeSessionService,
-  IConversationShareService,
-  createUnsupportedConversationShareService,
   IFileWatcherService,
   IModelSelectionService,
   IProviderSettingsService,
@@ -88,10 +86,6 @@ export function createRemoteWorkspaceServiceCollection(params: {
     fetchImpl: hostApiNetworkTransport.fetch,
   });
   const localBroadcastService = createBroadcastService(params.parentPort);
-  // 会话发布会上传到官方账号服务，无账号模式的构建不提供该能力。
-  const conversationShareService = createUnsupportedConversationShareService({
-    message: "Conversation publishing requires the ZCode account service",
-  });
   const reportingRemoteZCodeTaskService = params.createReportingRemoteZCodeTaskService(
     params.connectionServices.zcodeTaskService,
   );
@@ -222,7 +216,6 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(IZCodeTaskService, remoteZCodeTaskService)
     .register(IZCodeAgentService, params.connectionServices.zcodeAgentService)
     .register(IZCodeSessionService, remoteZCodeSessionService)
-    .register(IConversationShareService, conversationShareService)
     .register(IFileWatcherService, params.connectionServices.fileWatcherService)
     // Provider/Model 事实属于目标 Environment。远端 workspace 的选择和设置视图
     // 必须直接读取远端 Registry，不能继续显示 Desktop 本地 Provider。

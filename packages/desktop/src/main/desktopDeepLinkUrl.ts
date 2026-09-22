@@ -1,7 +1,6 @@
 const DEEP_LINK_SCHEME = "zcode";
 const DEEP_LINK_RE = /\bzcode:(?:\/\/|\/)?[^\s"'<>]+/i;
 const WORKSPACE_OPEN_HOST = "workspace";
-const SHARE_IMPORT_HOST = "share";
 const DEEP_LINK_ADDITIONAL_DATA_KEY = "deepLinkUrl";
 const OPEN_WORKSPACE_ADDITIONAL_DATA_KEY = "openWorkspacePath";
 const OPEN_WORKSPACE_ARG = "--open-workspace";
@@ -37,20 +36,6 @@ export function extractWorkspaceOpenPath(parsedUrl: URL): string | null {
 
   const path = parsedUrl.searchParams.get("path");
   return path && path.length > 0 ? path : null;
-}
-
-export function isShareImportUrl(parsedUrl: URL): boolean {
-  return (
-    parsedUrl.protocol === `${DEEP_LINK_SCHEME}:` &&
-    parsedUrl.hostname === SHARE_IMPORT_HOST &&
-    normalizeDeepLinkPath(parsedUrl.pathname) === "/import"
-  );
-}
-
-export function extractShareImportCode(parsedUrl: URL): string | null {
-  if (!isShareImportUrl(parsedUrl)) return null;
-  const code = parsedUrl.searchParams.get("code")?.trim();
-  return code && /^[A-Za-z0-9._~-]{1,512}$/u.test(code) ? code : null;
 }
 
 function decodeDeepLinkCandidate(value: string): string | null {
@@ -122,10 +107,6 @@ function isCompleteDeepLinkUrl(value: string): boolean {
 
   if (isWorkspaceOpenUrl(parsedUrl)) {
     return parsedUrl.searchParams.has("path");
-  }
-
-  if (isShareImportUrl(parsedUrl)) {
-    return extractShareImportCode(parsedUrl) !== null;
   }
 
   return true;

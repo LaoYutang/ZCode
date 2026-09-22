@@ -1,6 +1,4 @@
 /* eslint-disable max-lines -- 桌面命令分发需要共享窗口与平台上下文，集中维护更便于一致性 */
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { app, BrowserWindow, dialog, shell } from "electron";
 import type { MessageBoxOptions } from "electron";
 import {
@@ -14,9 +12,6 @@ import {
   ZCODE_ENV,
   isAutoUpdateEnabledForUpdateSource,
   buildZCodeEndpointUrls,
-  getCommunityUrlFromConfigs,
-  getFeedbackUrlFromConfig,
-  resolveHelpAppConfig,
   normalizeZCodeEndpointOrigin,
   resolveZCodeEndpointOrigin,
 } from "@zcode/shared";
@@ -126,142 +121,6 @@ async function clearAllDataAndRelaunch(options: {
 
   app.relaunch();
   app.exit(0);
-}
-
-async function fetchRemoteAppConfig(fetchRemoteConfig?: () => Promise<unknown>): Promise<unknown> {
-  if (!fetchRemoteConfig) throw new Error("Help config reader is unavailable");
-  return fetchRemoteConfig();
-}
-
-function resolveLocalAppConfigPath(options?: {
-  appPath?: string;
-  isPackaged?: boolean;
-  resourcesPath?: string;
-}): string {
-  const isPackaged = options?.isPackaged ?? app.isPackaged;
-  if (isPackaged) {
-    // app.getAppPath() 在正式包中指向 resources/app.asar，向上两级后会误读
-    // Contents/config。内置配置由 electron-builder 放在 resources/config，必须从 resourcesPath 解析。
-    return join(options?.resourcesPath ?? process.resourcesPath, "config/default.json");
-  }
-  return join(options?.appPath ?? app.getAppPath(), "../../config/default.json");
-}
-
-async function readLocalAppConfig(readLocalConfig?: () => unknown): Promise<unknown> {
-  const localConfigPath = resolveLocalAppConfigPath();
-  return readLocalConfig?.() ?? JSON.parse(await readFile(localConfigPath, "utf-8"));
-}
-
-async function resolveRemoteAppConfigValue(options: {
-  fetchRemoteConfig?: () => Promise<unknown>;
-  readLocalConfig?: () => unknown;
-  resolveFromConfig: (config: unknown) => string | undefined;
-  logPrefix: "feedback" | "community";
-  logger: {
-    warn: (...args: unknown[]) => void;
-  };
-}): Promise<string | undefined> {
-  try {
-    const remoteConfig = await fetchRemoteAppConfig(options.fetchRemoteConfig);
-    const remoteResolvedValue = options.resolveFromConfig(remoteConfig);
-    if (remoteResolvedValue) {
-      return remoteResolvedValue;
-    }
-  } catch (error) {
-    options.logger.warn(`[${options.logPrefix}] failed to fetch remote config:`, error);
-  }
-
-  try {
-    const localConfig = await readLocalAppConfig(options.readLocalConfig);
-    const localResolvedValue = options.resolveFromConfig(localConfig);
-    if (localResolvedValue) {
-      return localResolvedValue;
-    }
-  } catch (error) {
-    options.logger.warn(`[${options.logPrefix}] failed to read local config:`, error);
-  }
-
-  return undefined;
-}
-
-export async function resolveFeedbackUrl(options: {
-  fetchRemoteConfig?: () => Promise<unknown>;
-  readLocalConfig?: () => unknown;
-  logger: {
-    warn: (...args: unknown[]) => void;
-  };
-}): Promise<string | undefined> {
-  return resolveRemoteAppConfigValue({
-    ...options,
-    logPrefix: "feedback",
-    resolveFromConfig: getFeedbackUrlFromConfig,
-  });
-}
-
-export async function resolveCommunityUrl(options: {
-  locale: Locale;
-  fetchRemoteConfig?: () => Promise<unknown>;
-  readLocalConfig?: () => unknown;
-  logger: {
-    warn: (...args: unknown[]) => void;
-  };
-}): Promise<string | undefined> {
-  let remoteConfig: unknown;
-  try {
-    remoteConfig = await fetchRemoteAppConfig(options.fetchRemoteConfig);
-  } catch (error) {
-    options.logger.warn("[community] failed to fetch remote config:", error);
-  }
-
-  let localConfig: unknown;
-  try {
-    localConfig = await readLocalAppConfig(options.readLocalConfig);
-  } catch (error) {
-    options.logger.warn("[community] failed to read local config:", error);
-  }
-
-  return getCommunityUrlFromConfigs(remoteConfig, localConfig, options.locale);
-}
-
-async function openFeedback(
-  logger: { warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void },
-  targetWindow?: BrowserWindow | null,
-  fetchRemoteConfig?: () => Promise<unknown>,
-) {
-  let remoteConfig: unknown;
-  let localConfig: unknown;
-  try {
-    remoteConfig = await fetchRemoteAppConfig(fetchRemoteConfig);
-  } catch (error) {
-    logger.warn("[feedback] failed to fetch remote config:", error);
-  }
-  try {
-    localConfig = await readLocalAppConfig();
-  } catch (error) {
-    logger.warn("[feedback] failed to read local config:", error);
-  }
-  const config = resolveHelpAppConfig(remoteConfig, localConfig);
-  if (!config.feedback_use_external_form) {
-    resolveTargetWindow(targetWindow)?.webContents.send(PlatformChannels.OpenFeedbackDialog);
-    return;
-  }
-  if (config.feedback_url) await shell.openExternal(config.feedback_url);
-}
-
-async function openCommunity(
-  locale: Locale,
-  logger: {
-    warn: (...args: unknown[]) => void;
-    error: (...args: unknown[]) => void;
-  },
-  fetchRemoteConfig?: () => Promise<unknown>,
-) {
-  const communityUrl = await resolveCommunityUrl({ locale, logger, fetchRemoteConfig });
-  if (!communityUrl) {
-    logger.warn("[community] community_urls is missing from both remote and local config");
-    return;
-  }
-  await shell.openExternal(communityUrl);
 }
 
 async function promptCustomZCodeEndpoint(
@@ -456,7 +315,6 @@ async function resolveCurrentZCodeEndpointOrigin(settingService: {
 
 export async function executeDesktopCommand(options: {
   command: DesktopCommandId;
-  fetchHelpConfig?: () => Promise<unknown>;
   senderWindow?: BrowserWindow | null;
   logger: {
     info: (...args: unknown[]) => void;
@@ -578,16 +436,6 @@ export async function executeDesktopCommand(options: {
       return;
     case DesktopCommandIds.RelaunchApp:
       await options.onRelaunchApp();
-      return;
-    case DesktopCommandIds.OpenFeedback:
-      await openFeedback(options.logger, targetWindow, options.fetchHelpConfig);
-      return;
-    case DesktopCommandIds.OpenCommunity:
-      await openCommunity(
-        options.currentApplicationLocale,
-        options.logger,
-        options.fetchHelpConfig,
-      );
       return;
     case DesktopCommandIds.ExportLogs:
       await exportLogs();

@@ -4,10 +4,6 @@
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
 </div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
-</p>
-<p align="center">
   <a href="README.md">简体中文</a> | English
 </p>
 
@@ -18,11 +14,13 @@
 > Main differences from upstream:
 >
 > - **Login and account interfaces removed**: Z.ai / BigModel OAuth login, browser authorization and deep link callbacks, Coding Plan API Key exchange, account credential refresh, and the account-state derivation built on them. The app holds no login state and exposes no login entry point.
-> - **Account-derived official features removed**: off-peak tasks, plan subscription and quota panel, plan identity badges, official Server MCP credentials, login-gated conversation sharing and feedback, telemetry identity and marketing attribution, and remote workspace credential delivery.
-> - **Fully self-managed providers**: the built-in config only supplies `api-key` templates and generic model metadata; the user's personal provider config (default `~/.zcode/v2/provider_config.json`) is the single source of truth.
-> - **Desktop update source decoupled**: the official manifest is no longer requested; updates read this repository's GitHub Releases and only notify with a link to the download page, never downloading or installing automatically.
->
-> The product name, the `zcode` command, and the `@zcode/*` package scope stay aligned with upstream so the fork can keep following it. See [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md) and [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md) for the full rules.
+> - **Account-derived official features removed**: off-peak tasks, plan subscription and quota panel, plan identity badges, official Server MCP credentials, telemetry identity and marketing attribution, and remote workspace credential delivery.
+
+- **Official help, feedback, and sharing entry points removed**: the help menu keeps only Resource Manager, Check for Updates, and About; product docs / community / issue reporting / feature requests, conversation sharing (including the share deep link and the Web share landing page), and the built-in feedback center are gone, and no remote help config is fetched.
+  > - **Fully self-managed providers**: the built-in config only supplies `api-key` templates and generic model metadata; the user's personal provider config (default `~/.zcode/v2/provider_config.json`) is the single source of truth.
+  > - **Desktop update source decoupled**: the official manifest is no longer requested; updates read this repository's GitHub Releases and only notify with a link to the download page, never downloading or installing automatically.
+  >
+  > The product name, the `zcode` command, and the `@zcode/*` package scope stay aligned with upstream so the fork can keep following it. See [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md), [specs/help/client-help-surfaces.md](specs/help/client-help-surfaces.md), and [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md) for the full rules.
 
 ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
@@ -141,7 +139,7 @@ The root [.env.example](.env.example) provides sample service URLs and build con
 | `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | Path to a local provider configuration file; uses the built-in configuration when unset |
 | `ZCODE_DIST_BASE_URL`                | Download base URL used by the CLI distribution installer                                |
 
-Runtime variables can be set explicitly in the environment of the startup command. See [config/README.md](config/README.md) for the default configuration shipped with the client.
+Runtime variables can be set explicitly in the environment of the startup command. The built-in provider configuration ships under `config/provider/`.
 
 ## Packaging
 

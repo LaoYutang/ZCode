@@ -4,14 +4,12 @@ import { WorkspaceTerminalToggleButton } from "@/WorkspaceTerminalToggleButton.j
 import { cn } from "@/components/lib/utils.js";
 import type { WorkspaceHeaderActionSectionProps } from "@/WorkspaceHeaderSections/shared.js";
 import { WorkspaceHelpMenuButton } from "@/WorkspaceHelpMenuButton.js";
-import { ConversationShareMenu } from "@/ConversationShareMenu.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 
 export type { WorkspaceHeaderActionSectionProps } from "@/WorkspaceHeaderSections/shared.js";
 
 export function WorkspaceHeaderActionSection({
   variant = "task",
-  activeTaskId,
   readOnlyReason,
   workspaceAbsPath,
   workspaceIdentity,
@@ -44,12 +42,6 @@ export function WorkspaceHeaderActionSection({
           workspaceIdentity={workspaceIdentity}
           remoteTarget={remoteTarget}
           onSelectedEditorChange={onSelectedEditorChange}
-        />
-      ) : null}
-      {activeTaskId && isDesktop !== false ? (
-        <ConversationShareMenu
-          taskId={activeTaskId}
-          useWindowsCaptionSpacing={useWindowsCaptionSpacing}
         />
       ) : null}
       {!simplifyForNarrowRemote ? (

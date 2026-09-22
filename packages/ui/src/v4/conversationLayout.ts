@@ -43,3 +43,13 @@ export function getConversationStatusPanelOffsetClassName(
   // 状态面板和会话宽布局统一在 1280px 启用，保证面板状态切换不改变响应分水岭。
   return layout === "none" ? undefined : CONVERSATION_STATUS_PANEL_WIDE_OFFSET_CLASS_NAME;
 }
+
+export function resolveConversationSelectionTooltipEnabled({
+  selectionActionsEnabled,
+}: {
+  selectionActionsEnabled: boolean;
+}): boolean {
+  // 跨功能选择工具条的唯一启用裁决：宿主给出的开关（focused pane 且无阻塞交互）即结论，
+  // 组件侧不再叠加第二套条件，避免工具条与选区生命周期脱钩。
+  return selectionActionsEnabled;
+}

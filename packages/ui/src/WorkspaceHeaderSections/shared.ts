@@ -56,7 +56,6 @@ export interface WorkspaceHeaderTitleSectionProps {
 
 export interface WorkspaceHeaderActionSectionProps {
   variant?: WorkspaceHeaderVariant;
-  activeTaskId?: string | null;
   readOnlyReason?: string;
   workspaceAbsPath: string;
   workspaceIdentity?: string;

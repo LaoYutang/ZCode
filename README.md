@@ -4,10 +4,6 @@
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
 </div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">飞书社群</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
-</p>
-<p align="center">
   简体中文 | <a href="README.en.md">English</a>
 </p>
 
@@ -18,11 +14,13 @@
 > 相对上游的主要差异：
 >
 > - **移除登录与账号接口**：Z.ai / BigModel OAuth 登录、浏览器授权与 deep link 回调、Coding Plan API Key 换取、账号凭据刷新，以及由此派生的账号态判定。应用不再持有或刷新登录态，界面不再有登录入口。
-> - **移除登录派生的官方功能**：闲时（错峰）任务、套餐订阅与额度面板、套餐身份徽标、官方 Server MCP 凭据、会话分享与反馈的登录鉴权、遥测身份与营销归因、远程工作区凭据下发。
-> - **供应商完全自管**：内置配置只提供 `api-key` 模板与通用模型元数据，用户个人 provider 配置（默认 `~/.zcode/v2/provider_config.json`）是唯一事实来源。
-> - **桌面端更新源解绑**：不再请求官方 manifest，改为读取本仓库的 GitHub Release，只提示并跳转到下载页，不自动下载安装。
->
-> 产品名、`zcode` 命令与 `@zcode/*` 包作用域与上游保持一致，便于持续跟随上游更新。完整规则见 [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md) 与 [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md)。
+> - **移除登录派生的官方功能**：闲时（错峰）任务、套餐订阅与额度面板、套餐身份徽标、官方 Server MCP 凭据、遥测身份与营销归因、远程工作区凭据下发。
+
+- **移除官方帮助、反馈与分享入口**：帮助菜单只保留资源管理器、检查更新与关于；产品文档 / 用户社群 / 问题上报 / 给产品提需求、会话分享（含分享深链与 Web 分享落地页）与内置反馈中心整体下线，不再请求远端帮助配置。
+  > - **供应商完全自管**：内置配置只提供 `api-key` 模板与通用模型元数据，用户个人 provider 配置（默认 `~/.zcode/v2/provider_config.json`）是唯一事实来源。
+  > - **桌面端更新源解绑**：不再请求官方 manifest，改为读取本仓库的 GitHub Release，只提示并跳转到下载页，不自动下载安装。
+  >
+  > 产品名、`zcode` 命令与 `@zcode/*` 包作用域与上游保持一致，便于持续跟随上游更新。完整规则见 [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md)、[specs/help/client-help-surfaces.md](specs/help/client-help-surfaces.md) 与 [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md)。
 
 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 
@@ -145,7 +143,7 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 | `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | 本地 Provider 配置文件路径；未设置时使用内置配置 |
 | `ZCODE_DIST_BASE_URL`                | 命令行安装脚本使用的下载根地址                   |
 
-运行时变量可在启动命令的环境中显式设置。随客户端发布的默认配置见 [config/README.md](config/README.md)。
+运行时变量可在启动命令的环境中显式设置。内置 Provider 配置随包发布在 `config/provider/`。
 
 ## 打包
 

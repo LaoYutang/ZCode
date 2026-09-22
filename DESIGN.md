@@ -320,7 +320,7 @@ Control size and primary/secondary action emphasis do not independently change r
 ### Dialogs
 
 - Dialog shells, including alert and confirmation dialogs, use `rounded-2xl`.
-- Only chat attachment preview, feedback screenshot preview, and CUA screenshot preview dialogs keep `rounded-xl` shells.
+- Only chat attachment preview and CUA screenshot preview dialogs keep `rounded-xl` shells.
 - The dialog shell does not count toward its content hierarchy. The first rounded content container starts again at `rounded-xl`, followed by `rounded-lg` → `rounded-md` → `rounded-sm`.
 - Basic controls inside dialogs follow the control table; a layout wrapper does not introduce an extra level.
 

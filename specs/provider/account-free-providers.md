@@ -42,6 +42,14 @@ ZCode 原设计与智谱官方账号体系绑定：应用内置 Z.ai / BigModel 
 
 原 WelcomeScreen 的「使用 API Key」与「跳过」是登录之外唯一的可用路径，必须保留并成为默认引导。原 `login/` 目录下与登录无关的表单能力迁移为独立的「添加供应商」入口。
 
+### 6. 分享与反馈不再属于「保留面」
+
+第二轮的 E 项只切断了分享/反馈的**登录鉴权**，功能本体与全部入口保留，形成「入口存在但必然失败」的假功能。本轮把这两条链路连同官方外链入口一并删除，规则与验收见 [客户端帮助、反馈与分享入口下线](../help/client-help-surfaces.md)。与账号迁移相关的收口：
+
+- 分享上传/导入依赖账号派生鉴权，账号移除后 `IConversationShareService` 已无可用实现，随功能删除。
+- 反馈提交同样依赖账号，`IFeedbackService` 与其本地工单、附件、日志归档目录一并删除。
+- 因此「登录派生的周边能力」清单不再包含会话分享与反馈：它们不再是「保留但不可用」，而是不存在。
+
 ## 唯一所有者
 
 | 状态                       | 所有者                                                          |
@@ -117,11 +125,11 @@ CLI 顺序：shared-types、contracts、dynamic-workflow、i18n、telemetry、dy
 - **B. preload 类型断链**：`DesktopZoomState` / `WindowControlsOverlayMetrics` / `WindowControlsOverlayReadyPayload` 补进 `packages/shared/src/index.ts` 的 `./platform.js` 具名 re-export（`@zcode/shared` 的 exports 没有 `./platform` 子路径，barrel 是仓内唯一可行修复点）。preload 工程错误数 3 → 0，desktop main 84 → 83。
 - **C. 套餐购买 webview 子系统**：删除 `packages/desktop/src/preload/codingPlanWebview.ts` 及其 tsup preload entry、`desktopWindowChrome.ts` 的 coding-plan preload 切换与 PayPal / 支付回调导航守卫（`isCodingPlanEmbeddedWebviewSrc` / `isCodingPlanWebviewUrl` / `isCodingPlanPaymentCallbackUrl` / `isCodingPlanPaypalNavigationUrl` / `isAllowedCodingPlanEmbeddedNavigationUrl` / `isPaypalHostname` / `pendingWebviewCodingPlanGuestFlags` / `isCodingPlanGuest` 及整段只服务 coding-plan 的 `will-navigate` 监听）、`desktopMainIpcRemote.ts` 的重复副本与 `OpenExternal` 回写 webview 分支、`DesktopCommandIds.ClearCodingPlanWebviewStorage` 与 `clearCodingPlanWebviewStorage`、`vite.config.ts` 的 `VITE_CODING_PLAN_WEBVIEW_ORIGIN`；`@zcode/shared` 侧同步删除 `CodingPlanWebviewChannels` / `CodingPlanPurchaseCompletePayload` / `CodingPlanWebviewLocale` / `CodingPlanWebviewLangChangeDetail` / `isTrustedCodingPlanWebviewOrigin` / `isLoopbackHostname`。
 - **D. 设置页使用统计 tab**：`settingsNavigation.ts` 删除 `SettingsUsageTabTarget`、`SETTINGS_USAGE_TAB_INTENT_KEY` 会话存储交接、`usageTab` 事件字段、`setPendingSettingsUsageIntent` / `setPendingSettingsUsageCodingPlanIntent` / `consumePendingSettingsUsageTab` / `shouldFallbackSettingsUsageTabToApp`；`SettingsPage.tsx` 删除对应的消费 useEffect。`usage` 分区本身保留（`UsageStatsSection` 仍渲染 `AppUsagePanel`）。
-- **E. 分享导入 deep link**：选择「恢复投递方」而不是删除通道——web 落地页 `ConversationShareLandingPage` 仍向可导入分享下发 `zcode://share/import?code=...`，且 preload 缓冲、`IPlatformService.onShareImport`、renderer 导入流程、导入提示 UI 全部存活。`desktopWorkspaceDeepLink.ts` 的 `handleDeepLink` 现在路由 `share/import`，并按工作区打开同样的模式做 renderer-ready 前缓存（`deliverPendingWorkspaceOpen` / `clearWorkspaceDeepLinkRoutesForWindow` 同步处理）。
+- **E. 分享导入 deep link**：本轮已**推翻**此决定——分享功能整体下线，`ConversationShareLandingPage`、preload 缓存、`IPlatformService.onShareImport`、renderer 导入流程、导入提示 UI 与 `share/import` 深链路由全部删除。理由见 [客户端帮助、反馈与分享入口下线](../help/client-help-surfaces.md)。
 - **F. 死遥测/营销钩子与死导出**：删除 `telemetryCore.ts` 的 `loadMarketingParams` 依赖、调用与 `didWarnMarketingParamsLoadFailure`、请求体 `marketing_params` 字段；`packages/shared/src/oauth.ts` 删除随之失去消费者的 `OAuthLoginAttribution`；`NodeZCodeBuiltinProviderConfigSource.applyRemoteRelease` 与其返回类型 `ApplyZCodeBuiltinReleaseResult` 删除。
 - **G. 命名残留**：`isOffPeakCreateRestrictedTurn` → `isOffPeakMutationRestrictedTurn`（4 处调用点同步）；`ModelConfigSelect.tsx` 删除已无生产者的 `family:` 分组 key 判定，`isFamilyConnectionGroup` 改名 `hasModelGroupLabelBadge`（`labelBadge` 仍由 `modelSelectionGroups.ts` 与 4 个调用方产出，故分隔线逻辑保留）。
 
-刻意保留（有 grep 证据）：`resolveZaiBusinessBaseUrl`（`desktopRuntimeEnv.ts`、`services/src/providers/api/apiEndpoints.ts` 仍有消费者）、`ModelSelectGroup.labelBadge` 与其分隔线渲染、`conversation-share` 全链路。
+刻意保留（有 grep 证据）：`resolveZaiBusinessBaseUrl`（`desktopRuntimeEnv.ts`、`services/src/providers/api/apiEndpoints.ts` 仍有消费者）、`ModelSelectGroup.labelBadge` 与其分隔线渲染。`conversation-share` 全链路当时保留，已于本轮删除。
 
 ### 验证结果（第二轮，实测）
 

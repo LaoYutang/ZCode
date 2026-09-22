@@ -678,6 +678,3 @@ export const TID_CONFIRM_DIALOG_CONFIRM = "confirm-dialog-confirm";
 export function testId(base: string, suffix: string): string {
   return `${base}-${suffix}`;
 }
-
-/** 用户反馈的诊断日志授权开关 */
-export const TID_FEEDBACK_LOGS_OPT_IN = "feedback-logs-opt-in";
