@@ -245,18 +245,18 @@ jobs:
       NPM_CONFIG_FETCH_TIMEOUT: "600000"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # 版本解析与 build metadata 会读取 Git 标签和历史，保留完整历史避免版本信息不完整。
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -302,7 +302,9 @@ jobs:
           # 它必须等于 Release tag，否则客户端会永久判定为已最新。
           # 本平台可能产出多个描述文件（Linux 按架构分开命名），逐个校验。
           # 架构覆盖情况（Windows/macOS 的单个文件必须覆盖两支架构）由 bundle 阶段断言。
-          mapfile -t channel_files < <(find packages/desktop/dist -maxdepth 1 -name 'latest*.yml' -print | sort)
+          # 用 while-read 收集而不是 mapfile：macOS runner 的 /bin/bash 是 3.2，没有 mapfile。
+          channel_files=()
+          while IFS= read -r channel_file; do channel_files+=("$channel_file"); done < <(find packages/desktop/dist -maxdepth 1 -name 'latest*.yml' -print | sort)
           if (( ${#channel_files[@]} == 0 )); then
             echo "::error::未找到 packages/desktop/dist/latest*.yml —— 客户端将无法检测更新。"
             exit 1
@@ -322,7 +324,9 @@ jobs:
         run: |
           set -euo pipefail
           # 一次调用产出两支架构，两个 .app 都必须验签。
-          mapfile -t app_paths < <(find packages/desktop/dist -maxdepth 3 -type d -name '*.app' -print | sort)
+          # 同「Verify packaged app version」：macOS 的 bash 3.2 没有 mapfile。
+          app_paths=()
+          while IFS= read -r app_path; do app_paths+=("$app_path"); done < <(find packages/desktop/dist -maxdepth 3 -type d -name '*.app' -print | sort)
           if (( ${#app_paths[@]} == 0 )); then
             echo "::error::未找到 macOS .app 产物"
             exit 1
@@ -333,7 +337,7 @@ jobs:
           done
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zcode-desktop-${{ matrix.target }}-${{ needs.prepare.outputs.build_environment }}${{ needs.prepare.outputs.preview_identity == 'true' && '-preview' || '' }}
           path: |
@@ -360,13 +364,13 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # 生成 Release 说明需要 tag 区间内的提交历史。
           fetch-depth: 0
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
 
