@@ -56,7 +56,7 @@
 
 ## 验收场景
 
-1. 在 `v3.14.1` 上构建 → 应用版本是 `3.14.1`；`dist/latest.yml` 的 `version` 也是 `3.14.1`。
+1. 在 `v3.14.1` 上构建 → 应用版本是 `3.14.1`；该平台产出的全部 channel 文件（`dist/latest*.yml`，含聚合了两支架构的 `latest.yml` / `latest-mac.yml`）的 `version` 也是 `3.14.1`。
 2. 在 `v3.15.0-beta.1` 上构建 → 应用版本是 `3.15.0-beta.1`（prerelease 后缀保留）。
 3. HEAD 不在任何 tag 上，且未设置 `ZCODE_RELEASE_TAG` → 应用版本是 `0.0.0-dev`。
 4. HEAD 在一个早于 `v3.14.1` 的提交上（即"最近 tag 是 v3.14.1，但 HEAD 已前进"）→ 版本是 `0.0.0-dev`，不是 `3.14.1`。

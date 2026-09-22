@@ -14,6 +14,11 @@ import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
 import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
 import {
+  artifactArchHintsByArch,
+  artifactNameMatchesArch,
+  verifyChannelFileCoverage,
+} from "./channel-files.mjs";
+import {
   findDesktopNativePackageViolations,
   parseAsarListWithPackState,
 } from "./desktop-native-package-policy.mjs";
@@ -79,10 +84,6 @@ const artifactExtensionsByOs = {
   mac: [".dmg", ".zip"],
   win: [".exe"],
   linux: [".AppImage", ".deb", ".rpm", ".pkg.tar.zst"],
-};
-const artifactArchHintsByArch = {
-  x64: ["x64", "x86_64", "amd64"],
-  arm64: ["arm64", "aarch64"],
 };
 const commandStdoutMaxBuffer = 64 * 1024 * 1024;
 const requiredRuntimeModules = [
@@ -230,27 +231,18 @@ export function resolveElectronBuilderBinariesFallbackMirror(output, mirror, env
   return NPMMIRROR_ELECTRON_BUILDER_BINARIES_MIRROR;
 }
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export function artifactNameMatchesArch(fileName, archHint) {
-  // 部分环境的安装包会在架构后追加后缀（如 mac-arm64_TEST.dmg）。
-  // 体积审计必须接受 "_" 作为架构后的分隔符，否则包已生成但审计阶段会误报找不到产物。
-  return new RegExp(`-${escapeRegExp(archHint.toLowerCase())}(?:[._-])`, "i").test(fileName);
-}
-
 function printHelp() {
   console.log(`桌面端打包脚本
 
 用法:
   pnpm bundle:desktop
   pnpm bundle:desktop -- --os mac --arch x64
+  pnpm bundle:desktop -- --os win --arch x64,arm64
   pnpm bundle:desktop -- linux arm64
 
 参数:
   --os, -o <mac|win|linux>     目标操作系统，默认 mac
-  --arch, -a <x64|arm64>       目标 CPU 架构，默认 arm64
+  --arch, -a <x64|arm64,...>   目标 CPU 架构，可传多支（逗号或空格分隔），默认 arm64
   --skip-prepare               跳过 prepare:runtime-assets
   --skip-build                 跳过 pnpm build
   --dry-run                    只打印最终命令，不执行打包
@@ -258,7 +250,13 @@ function printHelp() {
 
 环境变量:
   ZCODE_TARGET_OS              与 --os 等价
-  ZCODE_TARGET_ARCH            与 --arch 等价
+  ZCODE_TARGET_ARCH            与 --arch 等价（单架构）
+  ZCODE_TARGET_ARCHES          等价于 --arch，可传多支架构
+
+说明:
+  一次调用内产出多支架构是同平台更新清单聚合的前提：Windows / macOS 的
+  latest*.yml 文件名不带架构后缀，分两次打包会互相覆盖（见
+  specs/build/desktop-release-pipeline.md）。
 `);
 }
 
@@ -278,15 +276,38 @@ function normalizeArch(rawArch) {
   return normalizedArch;
 }
 
+function normalizeArchList(rawArch) {
+  // 输入可能是数组（重复传 --arch、位置参数+flag），每个元素本身还可能带逗号/空格分隔。
+  const items = (Array.isArray(rawArch) ? rawArch : [rawArch]).flatMap((item) =>
+    String(item ?? "").split(/[,\s]+/),
+  );
+  const arches = [];
+
+  for (const item of items) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    const arch = normalizeArch(trimmed);
+    if (!arches.includes(arch)) arches.push(arch);
+  }
+
+  if (arches.length === 0) {
+    throw new Error(`未解析出目标 CPU 架构: ${String(rawArch)}`);
+  }
+
+  return arches;
+}
+
 function parseArgs(argv) {
   const options = {
     os: process.env.ZCODE_TARGET_OS ?? null,
-    arch: process.env.ZCODE_TARGET_ARCH ?? null,
+    // 环境变量可以是单架构（ZCODE_TARGET_ARCH）或多架构（ZCODE_TARGET_ARCHES）。
+    arch: process.env.ZCODE_TARGET_ARCHES ?? process.env.ZCODE_TARGET_ARCH ?? null,
     skipPrepare: process.env.ZCODE_SKIP_PREPARE === "1",
     skipBuild: process.env.ZCODE_SKIP_BUILD === "1",
     dryRun: false,
     positionals: [],
   };
+  const cliArches = [];
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -327,13 +348,13 @@ function parseArgs(argv) {
     }
 
     if (arg === "-a" || arg === "--arch") {
-      options.arch = argv[index + 1] ?? null;
+      cliArches.push(argv[index + 1] ?? "");
       index += 1;
       continue;
     }
 
     if (arg.startsWith("--arch=")) {
-      options.arch = arg.slice("--arch=".length);
+      cliArches.push(arg.slice("--arch=".length));
       continue;
     }
 
@@ -352,11 +373,14 @@ function parseArgs(argv) {
   }
 
   const resolvedOs = normalizeOs(options.os ?? positionalOs ?? DEFAULT_TARGET_OS);
-  const resolvedArch = normalizeArch(options.arch ?? positionalArch ?? DEFAULT_TARGET_ARCH);
+  // 优先级与单架构时代一致：CLI > 环境变量 > 位置参数 > 默认值。
+  const resolvedArches = normalizeArchList(
+    cliArches.length > 0 ? cliArches : (options.arch ?? positionalArch ?? DEFAULT_TARGET_ARCH),
+  );
 
   return {
     os: resolvedOs,
-    arch: resolvedArch,
+    arches: resolvedArches,
     skipPrepare: options.skipPrepare,
     skipBuild: options.skipBuild,
     dryRun: options.dryRun,
@@ -699,7 +723,7 @@ function verifyPackagedRuntimeDependencies(os, arch) {
 }
 
 async function main() {
-  const { os, arch, skipPrepare, skipBuild, dryRun } = parseArgs(process.argv.slice(2));
+  const { os, arches, skipPrepare, skipBuild, dryRun } = parseArgs(process.argv.slice(2));
   const buildArgs = [
     "exec",
     "electron-builder",
@@ -711,15 +735,14 @@ async function main() {
     "--publish",
     "never",
     osBuilderFlagMap[os],
-    archBuilderFlagMap[arch],
+    ...arches.map((arch) => archBuilderFlagMap[arch]),
   ];
 
-  console.log(`[bundle] target=${os}/${arch}`);
+  console.log(`[bundle] target=${os}/${arches.join("+")}`);
   console.log(`[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild}`);
 
-  const buildEnv = {
+  const baseEnv = {
     ZCODE_TARGET_OS: os,
-    ZCODE_TARGET_ARCH: arch,
     ...createElectronRuntimeMirrorEnv(resolveElectronMirror()),
     ...createElectronBuilderBinariesMirrorEnv(resolveElectronBuilderBinariesMirror()),
   };
@@ -730,29 +753,48 @@ async function main() {
   }
 
   if (!skipPrepare) {
-    run(pnpmCommand, ["prepare:runtime-assets"], buildEnv);
+    // 暂存目录按平台 key 隔离（bundled-agents/<key>、bundled-tools/<key>），
+    // 因此按架构各跑一次 prepare 可以并存；打包时 electron-builder 用 ${arch} 宏各取各的。
+    for (const arch of arches) {
+      run(pnpmCommand, ["prepare:runtime-assets"], { ...baseEnv, ZCODE_TARGET_ARCH: arch });
+    }
   }
 
   if (!skipBuild) {
-    run(pnpmCommand, ["build"], buildEnv);
+    // out/** 是架构无关的产物（版本等元数据来自 tag），多架构共跑一次即可。
+    run(pnpmCommand, ["build"], baseEnv);
   }
 
   await runTimedAsync("bundle:electron-builder", () =>
-    runElectronBuilderWithRetry(buildArgs, buildEnv),
+    runElectronBuilderWithRetry(buildArgs, {
+      ...baseEnv,
+      ZCODE_TARGET_ARCHES: arches.join(","),
+      // 单架构时保留 ZCODE_TARGET_ARCH，兼容仍按它读取架构的脚本与本地习惯。
+      ...(arches.length === 1 ? { ZCODE_TARGET_ARCH: arches[0] } : {}),
+    }),
   );
 
-  runTimedSync("bundle:verify-runtime-dependencies", () =>
-    verifyPackagedRuntimeDependencies(os, arch),
-  );
+  for (const arch of arches) {
+    runTimedSync(`bundle:verify-runtime-dependencies:${arch}`, () =>
+      verifyPackagedRuntimeDependencies(os, arch),
+    );
 
-  const artifactPath = findBuiltArtifact(os, arch);
-  runTimedSync("bundle:audit-bundle-size", () =>
-    run(process.execPath, [
-      resolve(desktopRoot, "scripts", "audit-bundle-size.mjs"),
-      "--artifact-path",
-      artifactPath,
-    ]),
-  );
+    const artifactPath = findBuiltArtifact(os, arch);
+    runTimedSync(`bundle:audit-bundle-size:${arch}`, () =>
+      run(process.execPath, [
+        resolve(desktopRoot, "scripts", "audit-bundle-size.mjs"),
+        "--artifact-path",
+        artifactPath,
+      ]),
+    );
+  }
+
+  runTimedSync("bundle:verify-channel-files", () => {
+    const channelFiles = verifyChannelFileCoverage({ os, arches, distDir: desktopDistRoot });
+    for (const { fileName, coveredArches } of channelFiles) {
+      console.log(`[bundle] channel file ok: ${fileName} arches=${coveredArches.join("+")}`);
+    }
+  });
 }
 
 const entryHref = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;

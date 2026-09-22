@@ -15,49 +15,18 @@ import {
   restoreTargetNodePtyPrebuild,
 } from "./scripts/node-pty-package-assets.mjs";
 import { cleanupPackagedSourcemaps } from "./scripts/packaged-sourcemap-cleanup.mjs";
-import { getTargetPlatform } from "./scripts/target-platform.mjs";
+import {
+  getTargetOs,
+  getTargetPlatform,
+  resolveDeclaredTargetArches,
+  resolvePackContextTarget,
+} from "./scripts/target-platform.mjs";
 import {
   resolveDesktopArtifactSuffix,
   resolveDesktopProductIdentity,
 } from "./scripts/desktop-product-identity.mjs";
 import { resolveDesktopUpdateSource } from "./scripts/desktop-update-source.mjs";
 import { verifyStagedKoffi } from "./scripts/koffi-package-assets.mjs";
-const ELECTRON_BUILDER_ARCH = {
-  1: "x64",
-  3: "arm64",
-};
-function resolveElectronBuilderWindowsTarget({
-  electronPlatformName,
-  arch,
-  configuredTargetPlatform,
-}) {
-  if (electronPlatformName !== "win32") {
-    throw new Error(
-      `[electron-builder.config] context platform is not win32: ${String(electronPlatformName)}`,
-    );
-  }
-  const actualArch = ELECTRON_BUILDER_ARCH[arch];
-  if (!actualArch) {
-    throw new Error(
-      `[electron-builder.config] unsupported electron-builder Windows architecture: ${String(arch)}`,
-    );
-  }
-  const actualTarget = {
-    os: "win32",
-    arch: actualArch,
-    key: `win32-${actualArch}`,
-  };
-  if (
-    configuredTargetPlatform?.os !== actualTarget.os ||
-    configuredTargetPlatform?.arch !== actualTarget.arch ||
-    configuredTargetPlatform?.key !== actualTarget.key
-  ) {
-    throw new Error(
-      `[electron-builder.config] configured target ${String(configuredTargetPlatform?.key)} does not match electron-builder target ${actualTarget.key}`,
-    );
-  }
-  return actualTarget;
-}
 import {
   findDesktopNativePackageViolations,
   createDesktopNativePackagePrunePatterns,
@@ -70,7 +39,11 @@ import {
 } from "./scripts/patch-nsis-install-section.mjs";
 
 const buildMetadata = getBuildMetadata();
-const targetPlatform = getTargetPlatform();
+// job 级目标：OS 在整次构建内固定；架构可能有多支（一次 electron-builder 调用同时产出 x64 + arm64），
+// 所以架构一律从 pack context 解析，不能用这里的单个值代替。
+const targetOs = getTargetOs();
+const declaredTargetArches = resolveDeclaredTargetArches();
+const jobTargetPlatform = getTargetPlatform();
 const builtinProviderConfig = await loadBuiltinProviderConfig();
 const desktopProductIdentity = resolveDesktopProductIdentity({
   ...process.env,
@@ -80,10 +53,46 @@ const desktopUpdateSource = resolveDesktopUpdateSource({
   ...process.env,
   ZCODE_ENV: builtinProviderConfig.environment,
 });
-const nativeSearchReleasePlan = resolveNativeSearchReleasePlan({
-  platform: targetPlatform.os,
-  arch: targetPlatform.arch,
-});
+const nativeSearchReleasePlan = resolveNativeSearchReleasePlanForArches(
+  declaredTargetArches ?? [jobTargetPlatform.arch],
+);
+
+function resolveTargetForPackContext(context) {
+  return resolvePackContextTarget({
+    electronPlatformName: context.electronPlatformName,
+    arch: context.arch,
+    expectedOs: targetOs,
+    declaredArches: declaredTargetArches,
+  });
+}
+
+// 静态 extraResources 只能写一份工具清单，因此要求本次构建的各架构拿到完全一致的工具集合；
+// 将来某个架构被禁用工具时这里直接失败，而不是静默漏打包该架构的资源。
+function resolveNativeSearchReleasePlanForArches(arches) {
+  const plans = arches.map((arch) => ({
+    arch,
+    plan: resolveNativeSearchReleasePlan({ platform: targetOs, arch }),
+  }));
+  const [first, ...rest] = plans;
+
+  for (const { plan } of rest) {
+    if (
+      plan.enabled !== first.plan.enabled ||
+      plan.extraResourceToolIds.join(",") !== first.plan.extraResourceToolIds.join(",")
+    ) {
+      throw new Error(
+        `[electron-builder.config] native search 工具清单在架构间不一致: ${plans
+          .map(
+            ({ arch, plan }) =>
+              `${arch}=${plan.enabled ? plan.extraResourceToolIds.join("+") : "disabled"}`,
+          )
+          .join(", ")}`,
+      );
+    }
+  }
+
+  return first.plan;
+}
 const rawMacSigningIdentity = process.env.APPLE_SIGNING_IDENTITY || process.env.CSC_NAME;
 const macSigningIdentity =
   rawMacSigningIdentity?.replace(/^Developer ID Application:\s*/, "") ?? null;
@@ -343,7 +352,7 @@ function resolveMissingRuntimeModules(appAsarPath) {
   });
 }
 
-async function injectHoistedRuntimeModulesIntoAsar(context) {
+async function injectHoistedRuntimeModulesIntoAsar(context, target) {
   const appAsarPath = resolveAppAsarPath(context);
   if (!existsSync(appAsarPath)) {
     throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
@@ -402,7 +411,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
       replaceAppAsarFromStaging({
         sourceDir: stagingDir,
         appAsarPath,
-        targetPlatformKey: targetPlatform.key,
+        targetPlatformKey: target.key,
         runAsarCommand,
       }),
     );
@@ -411,7 +420,7 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
   }
 }
 
-async function stripPackagedSourcemapReferences(context) {
+async function stripPackagedSourcemapReferences(context, target) {
   // electron-builder 的 files 规则能排除 .map 文件，但无法删除 JS/CSS 末尾
   // 指向 sourcemap 的注释；afterPack 注入运行时依赖后也可能重新带入第三方 sourceMappingURL。
   // 这里统一清理 app.asar 与 unpacked/extraResources，保证最终发布包不暴露 sourcemap 路径入口。
@@ -425,18 +434,18 @@ async function stripPackagedSourcemapReferences(context) {
       replaceAppAsarFromStaging({
         sourceDir,
         appAsarPath,
-        targetPlatformKey: targetPlatform.key,
+        targetPlatformKey: target.key,
         runAsarCommand,
       }),
   });
 }
 
-function assertPackagedNativeResourcePolicy(context) {
+function assertPackagedNativeResourcePolicy(context, target) {
   const appAsarPath = resolveAppAsarPath(context);
   const entries = parseAsarListWithPackState(
     runAsarCommandAndReadStdout(["list", "--is-pack", appAsarPath]),
   );
-  const violations = findDesktopNativePackageViolations(entries, targetPlatform.key);
+  const violations = findDesktopNativePackageViolations(entries, target.key);
   if (violations.length > 0) {
     // supportedArchitectures 允许工作区准备多平台依赖，但安装包只能携带目标平台资源。
     // 之前 Canvas 和 node-pty 的其他平台 native 被同时写进 asar/unpacked，包体被放大数百 MiB。
@@ -444,10 +453,10 @@ function assertPackagedNativeResourcePolicy(context) {
   }
 }
 
-function assertPackagedNodePtyPrebuild(context) {
+function assertPackagedNodePtyPrebuild(context, target) {
   const targetBinaryPath = resolvePackagedNodePtyPrebuildPath({
     resourcesDir: resolvePackagedResourcesDir(context),
-    platformKey: targetPlatform.key,
+    platformKey: target.key,
   });
   if (!existsSync(targetBinaryPath))
     throw new Error(`node-pty 预编译产物缺失: ${targetBinaryPath}`);
@@ -494,7 +503,9 @@ export default {
     // app.asar 会把桌面端运行时 node_modules 一并打进去，依赖包自带的 .map / README
     // 默认也会原样进入安装包。这里统一在主包层做一次裁剪，只移除非运行时文件，LICENSE 继续保留。
     ...PACKAGING_PRUNE_PATTERNS,
-    ...createDesktopNativePackagePrunePatterns(targetPlatform.key),
+    // 只保留本 pack target 的 node-pty prebuild：多架构调用下 `${arch}` 由 electron-builder
+    // 按 target 展开，另一支架构的 prebuild 会被排除，由 native 边界断言兜底。
+    ...createDesktopNativePackagePrunePatterns(`${targetOs}-\${arch}`),
     "!node_modules/@zcode/**",
     "!node_modules/react/**",
     "!node_modules/react-dom/**",
@@ -502,11 +513,12 @@ export default {
   asarUnpack: [
     // node-pty 的 target prebuild 还包含 spawn-helper / winpty-agent.exe 等辅助可执行文件，
     // 整个目标目录必须 unpack；其他平台目录已由 files 规则裁剪。
-    `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
+    `node_modules/node-pty/prebuilds/${targetOs}-\${arch}/**`,
   ],
   beforePack: async (context) => {
+    const target = resolveTargetForPackContext(context);
     runTimedSync("beforePack:restoreTargetNodePtyPrebuild", () =>
-      restoreTargetNodePtyPrebuild({ desktopPackageRoot, targetPlatform }),
+      restoreTargetNodePtyPrebuild({ desktopPackageRoot, targetPlatform: target }),
     );
     if (context.electronPlatformName !== "win32" || nsisInstallSectionPatched) {
       return;
@@ -544,27 +556,20 @@ export default {
     await stageElectronNotices(context.appOutDir, resources, framework.version);
   },
   afterPack: async (context) => {
-    const actualWindowsTarget =
-      context.electronPlatformName === "win32"
-        ? resolveElectronBuilderWindowsTarget({
-            electronPlatformName: context.electronPlatformName,
-            arch: context.arch,
-            configuredTargetPlatform: targetPlatform,
-          })
-        : null;
+    const target = resolveTargetForPackContext(context);
     await runTimedAsync("afterPack:injectHoistedRuntimeModulesIntoAsar", () =>
-      injectHoistedRuntimeModulesIntoAsar(context),
+      injectHoistedRuntimeModulesIntoAsar(context, target),
     );
     await runTimedAsync("afterPack:stripPackagedSourcemapReferences", () =>
-      stripPackagedSourcemapReferences(context),
+      stripPackagedSourcemapReferences(context, target),
     );
     runTimedSync("afterPack:assertPackagedNativeResourcePolicy", () =>
-      assertPackagedNativeResourcePolicy(context),
+      assertPackagedNativeResourcePolicy(context, target),
     );
     runTimedSync("afterPack:assertPackagedNodePtyPrebuild", () =>
-      assertPackagedNodePtyPrebuild(context),
+      assertPackagedNodePtyPrebuild(context, target),
     );
-    if (actualWindowsTarget) {
+    if (context.electronPlatformName === "win32") {
       await runTimedAsync("afterPack:writeWindowsInstallManifest", () =>
         writeWindowsInstallManifest(context),
       );
@@ -572,7 +577,7 @@ export default {
   },
   extraResources: [
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
-    ...(targetPlatform.os === "darwin"
+    ...(targetOs === "darwin"
       ? [
           {
             // CUA 权限浮窗的吸附数据源（CGWindowListCopyWindowInfo，不需要任何 TCC 权限）。
@@ -600,7 +605,7 @@ export default {
       from: "build/icon.png",
       to: "icon.png",
     },
-    ...(targetPlatform.os === "linux"
+    ...(targetOs === "linux"
       ? [
           {
             // AppImage 用户级 hicolor 图标安装使用真实 512x512 资源，避免目录标称尺寸和 PNG IHDR 不一致。
@@ -614,7 +619,7 @@ export default {
       from: "build/icon_windows.png",
       to: "icon_windows.png",
     },
-    ...(targetPlatform.os === "win32"
+    ...(targetOs === "win32"
       ? [
           {
             // Windows 托盘图标：Tray 在打包态只能稳定读取 resources 下的独立资源。
@@ -629,7 +634,8 @@ export default {
       // 桌面端内置的是 agent 的 JS bundle（glm/zcode.cjs，由 prepare:agent-bundle 生成），
       // Host 进程用 app 自带的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行 `zcode.cjs app-server --stdio`，
       // 不再随包内置独立 Node 二进制。远端 SSH/WSL 仍走原生二进制（无 Electron）。
-      from: `bundled-agents/${targetPlatform.key}/glm`,
+      // `${arch}` 按 pack target 展开，各架构取各自 key 下暂存的资产。
+      from: `bundled-agents/${targetOs}-\${arch}/glm`,
       to: "glm",
       filter: ["**/*", "!**/*.map"],
     },
@@ -637,12 +643,12 @@ export default {
       // agent shell 之前完全依赖宿主系统 PATH，GUI 启动时经常拿不到用户自己装的 rg。
       // 这里把 ripgrep 作为桌面端内置 runtime tool 打进 resources/tools，
       // 后续 host/server 把该目录追加到 PATH；用户版本优先，缺失时再由随包 rg 兜底。
-      from: `bundled-tools/${targetPlatform.key}/ripgrep`,
+      from: `bundled-tools/${targetOs}-\${arch}/ripgrep`,
       to: "tools/ripgrep",
       filter: ["**/*"],
     },
     ...nativeSearchReleasePlan.extraResourceToolIds.map((toolId) => ({
-      from: `bundled-tools/${targetPlatform.key}/${toolId}`,
+      from: `bundled-tools/${targetOs}-\${arch}/${toolId}`,
       to: `tools/${toolId}`,
       filter: ["**/*"],
     })),

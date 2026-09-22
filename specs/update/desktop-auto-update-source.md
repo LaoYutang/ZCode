@@ -83,7 +83,7 @@ electron-updater 的 message 会把**整个 releases atom feed XML、完整 HTTP
 客户端能检测到更新的前提（由 `.github/workflows/package-desktop.yml` 保证）：
 
 1. Release 必须**非 draft、非 prerelease**。
-2. Release 资产包含 `latest.yml` / `latest-mac.yml` / `latest-linux.yml`（及 `.blockmap`，供将来开自动下载用）。
+2. Release 资产包含 `latest.yml` / `latest-mac.yml` / `latest-linux.yml`（及 `.blockmap`，供将来开自动下载用）；Windows 与 macOS 的清单由同一次 electron-builder 调用聚合，`files[]` 覆盖该平台两支架构（见 `specs/build/desktop-release-pipeline.md`）。
 3. tag 名可归一化为合法 semver（`v3.14.1`），且等于构建产物的应用版本（由版本解析规则保证同源）。
 4. 发布顺序为「创建 draft → 上传资产 → 转正」，避免 `releases/latest` 在资产就位前被解析到。
 
@@ -91,9 +91,11 @@ electron-updater 的 message 会把**整个 releases atom feed XML、完整 HTTP
 
 `publish.provider = "github"` 的分支**不接受 `useMultipleRangeRequest`**（electron-builder 的配置 schema 会直接拒绝，报 `Invalid configuration object`）。运行时的 `setFeedURL` 同样不传该字段：`BaseGitHubProvider` 已在内部把 `isUseMultipleRangeRequest` 固定为 `false`。这个字段只属于 generic/s3 等分支。
 
-### 多架构产物：`latest*.yml` 同名覆盖
+### 多架构产物：同一平台一次调用产出聚合的 `latest*.yml`
 
-workflow 的矩阵按「平台 + 架构」拆分作业，因此 Windows x64/arm64 各自产出一份 `latest.yml`，上传 Release 时同名互相覆盖。**在仅提示模式下这是无害的**：客户端只读该文件的 `version`，`files[]`（含架构信息）只在下载时使用，而下载已交给 Release 页面。启用自动下载前必须先解决：把同一平台的多架构合并到一次 electron-builder 调用，得到一份列出全部产物的 `latest*.yml`。
+Windows / macOS 的 channel 文件名不带架构后缀（见 `app-builder-lib` 的 `getUpdateInfoFileName`：只对 Linux 追加架构），因此一个平台的两支架构必须由**同一次** electron-builder 调用产出——`PublishManager` 只在单进程内按「文件 + provider」合并 `files[]`，两次调用后者覆写前者。聚合后的清单里两支架构的安装包都在 `files[]` 中。
+
+发布侧契约（矩阵粒度、上传集合、重名断言）见 `specs/build/desktop-release-pipeline.md`。启用应用内自动下载时，`files[]` 的架构信息将被真正读取，届时仍需保持这条一次调用的约束。
 
 ## 验收场景
 

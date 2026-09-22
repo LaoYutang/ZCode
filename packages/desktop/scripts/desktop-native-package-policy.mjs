@@ -1,11 +1,8 @@
-const SUPPORTED_DESKTOP_PLATFORM_KEYS = [
-  "darwin-arm64",
-  "darwin-x64",
-  "linux-arm64",
-  "linux-x64",
-  "win32-arm64",
-  "win32-x64",
-];
+const SUPPORTED_DESKTOP_PLATFORM_OSES = ["darwin", "linux", "win32"];
+const SUPPORTED_DESKTOP_PLATFORM_KEYS = SUPPORTED_DESKTOP_PLATFORM_OSES.flatMap((os) => [
+  `${os}-x64`,
+  `${os}-arm64`,
+]);
 
 function assertSupportedTargetPlatformKey(targetPlatformKey) {
   if (!SUPPORTED_DESKTOP_PLATFORM_KEYS.includes(targetPlatformKey)) {
@@ -13,8 +10,26 @@ function assertSupportedTargetPlatformKey(targetPlatformKey) {
   }
 }
 
-export function createDesktopNativePackagePrunePatterns(targetPlatformKey) {
-  assertSupportedTargetPlatformKey(targetPlatformKey);
+function assertSupportedTargetPlatformKeyPattern(targetPlatformKeyPattern) {
+  const [os, ...archParts] = String(targetPlatformKeyPattern).split("-");
+  if (!SUPPORTED_DESKTOP_PLATFORM_OSES.includes(os) || archParts.join("-") !== "${arch}") {
+    throw new Error(
+      `不支持的桌面目标平台 key 模式: ${targetPlatformKeyPattern}（期望形如 win32-\${arch}）`,
+    );
+  }
+}
+
+/**
+ * node-pty 目录裁剪：排除全部 prebuilds（含安装机现场编译物与非目标平台包），再**重新包含**
+ * 本次 pack target 的 prebuild。
+ *
+ * 这里用 `${arch}` 宏而不是具体 key，是因为一次 electron-builder 调用会同时产出多支架构：
+ * electron-builder 会按 target 单独展开宏（`app-builder-lib/out/fileMatcher.js`），而模式匹配是
+ * 后匹配者胜（`app-builder-lib/out/util/filter.js` 的 `minimatchAll`），所以重包含成立。
+ * 漏保留本架构 prebuild 会被 `findDesktopNativePackageViolations` 兜底拦住。
+ */
+export function createDesktopNativePackagePrunePatterns(targetPlatformKeyPattern) {
+  assertSupportedTargetPlatformKeyPattern(targetPlatformKeyPattern);
 
   return [
     // PDF 预览已经由 Vite 打进 renderer，pdfjs-dist 的 Canvas optional dependency
@@ -26,9 +41,8 @@ export function createDesktopNativePackagePrunePatterns(targetPlatformKey) {
     // 桌面运行时统一使用目标 prebuild，禁止把安装机现场编译物或 ABI bin 缓存带进跨平台包。
     "!node_modules/node-pty/build/**",
     "!node_modules/node-pty/bin/**",
-    ...SUPPORTED_DESKTOP_PLATFORM_KEYS.filter((key) => key !== targetPlatformKey).map(
-      (key) => `!node_modules/node-pty/prebuilds/${key}/**`,
-    ),
+    "!node_modules/node-pty/prebuilds/**",
+    `node_modules/node-pty/prebuilds/${targetPlatformKeyPattern}/**`,
   ];
 }
 
