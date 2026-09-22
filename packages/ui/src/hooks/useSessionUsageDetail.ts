@@ -52,6 +52,10 @@ export function useSessionUsageDetail(options: {
   const [state, setState] = useState<SessionUsageDetailState>(emptyState);
   const requestVersionRef = useRef(0);
   const requestInFlightRef = useRef(false);
+  /** 在途期间到达的刷新请求（见 refresh 的 if 分支）：结束后补拉一次，不丢最新信号。 */
+  const pendingRefreshRef = useRef(false);
+  /** 供 finally 里的补拉自引用；useCallback 定义体内无法直接引用自身。 */
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
   const enabled = options.enabled !== false && Boolean(options.sessionId);
 
   const refresh = useCallback(async () => {
@@ -65,7 +69,12 @@ export function useSessionUsageDetail(options: {
       setState({ detail: null, error: null, loading: false, unsupported: true });
       return;
     }
-    if (requestInFlightRef.current) return;
+    if (requestInFlightRef.current) {
+      // 在途期间又来了新结果（连发请求 / 子代理变化）。这里不能直接丢：丢了面板会停在
+      // 上一帧、直到下一次请求完成才补上。置标志，让在途那次结束后补拉一次。
+      pendingRefreshRef.current = true;
+      return;
+    }
     requestInFlightRef.current = true;
     const requestVersion = ++requestVersionRef.current;
     setState((current) => ({ ...current, loading: current.detail === null, error: null }));
@@ -98,6 +107,10 @@ export function useSessionUsageDetail(options: {
       });
     } finally {
       requestInFlightRef.current = false;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        void refreshRef.current();
+      }
     }
   }, [
     enabled,
@@ -108,12 +121,15 @@ export function useSessionUsageDetail(options: {
     options.workspacePath,
     zcodeAgentService,
   ]);
+  refreshRef.current = refresh;
 
   // 切换会话/工作区/远端必须清空并作废旧结果：宁可短暂空态，也不能显示上一个会话的数字。
   useEffect(() => {
+    pendingRefreshRef.current = false;
     setState(emptyState());
     return () => {
       requestVersionRef.current += 1;
+      pendingRefreshRef.current = false;
     };
   }, [
     options.remoteSessionId,

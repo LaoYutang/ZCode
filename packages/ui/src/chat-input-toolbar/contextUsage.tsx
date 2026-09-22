@@ -14,7 +14,7 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { Progress, type ProgressSegment } from "@/components/ui/progress.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
+import { formatTokenThousands } from "@/lib/tokenNumberFormat.js";
 
 type ContextUsageBreakdownSource = ZCodeContextUsageBreakdownItem["source"];
 
@@ -39,7 +39,8 @@ function formatContextUsageTokenCount(
   locale: string,
   options: { maximumFractionDigits?: number } = {},
 ): string {
-  return formatCompactTokenNumber(locale, value, options);
+  // 上下文读数固定用 K（与状态面板的用量区一致）：同一对「已用 / 上限」不用两种单位。
+  return formatTokenThousands(locale, value, options);
 }
 
 function formatContextUsageSummary({

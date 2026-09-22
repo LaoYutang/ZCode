@@ -14,7 +14,7 @@ import {
   USAGE_STATS_TABS_TRIGGER_CLASS,
   UsageEmptyState,
   formatCompactNumber,
-  formatSummaryCompactTokenUsage,
+  formatCompactTokenUsage,
 } from "@/settings/usage-stats/usageStatsUiParts.js";
 
 // Recharts 会在模块初始化阶段触发 decimal.js-light 的 LN10 校验，
@@ -135,13 +135,11 @@ function AppUsageLifetimeSummaryStrip({ snapshot }: { snapshot: AppUsageSnapshot
   const items = [
     {
       label: intl.formatMessage({ id: "settings.usage.lifetimeTotalTokens" }),
-      value: snapshot ? formatSummaryCompactTokenUsage(locale, snapshot.summary.totalTokens) : "--",
+      value: snapshot ? formatCompactTokenUsage(locale, snapshot.summary.totalTokens) : "--",
     },
     {
       label: intl.formatMessage({ id: "settings.usage.lifetimePeakTokens" }),
-      value: snapshot
-        ? formatSummaryCompactTokenUsage(locale, snapshot.summary.peakDayTokens)
-        : "--",
+      value: snapshot ? formatCompactTokenUsage(locale, snapshot.summary.peakDayTokens) : "--",
     },
     {
       label: intl.formatMessage({ id: "settings.usage.longestSession" }),

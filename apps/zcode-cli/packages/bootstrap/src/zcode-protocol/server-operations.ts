@@ -2962,7 +2962,7 @@ export async function getSessionUsageDetail(
   return {
     sessionId: params.sessionId,
     billed: usage.billed,
-    latestCompletedRequest: usage.latestCompletedRequest,
+    latestTimedGeneration: usage.latestTimedGeneration,
     models: usage.models,
     recentRequests: usage.recentRequests,
     tools: usage.tools,

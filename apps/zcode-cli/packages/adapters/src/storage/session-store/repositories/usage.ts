@@ -11,7 +11,7 @@ import type {
   SessionUsageBilledTotals,
   SessionUsageDetailQueryInput,
   SessionUsageDetailQueryResult,
-  SessionUsageLatestRequest,
+  SessionUsageTimedGeneration,
   SessionUsageModelRow,
   SessionUsageRequestRow,
   SessionUsageSubagentRow,
@@ -779,14 +779,48 @@ export async function querySessionUsageDetail(
     )
     .all(input.sessionID, recentRequestLimit) as unknown as SessionUsageRequestRow[];
 
-  const latest = recentRequests[0];
-  const latestCompletedRequest: SessionUsageLatestRequest | null = latest
+  // 速度只取"最近一次可计时的真实生成"，不能直接拿最近一条 completed 行：
+  //  - 会话标题、提交信息、目标校验这类辅助请求**不带流式计时**（time_to_first_token_ms 恒为空），
+  //    实测库里相当一部分会话的最近一条 completed 行就是它们，取到就等于速度整行消失；
+  //  - 首 token 时间按请求缺失（实测某模型 1137/4177 条没有，且是完整的工具调用生成，
+  //    first_token_at 也为空、只有总耗时），这类行同样算不出生成速度；
+  //  - 不用 output ÷ 总耗时兜底：两种口径实测差 3.5 倍（78.0 vs 270.7 t/s），
+  //    混进同一行数字等于静默换口径。
+  // 实测每个有生成的会话都至少有一条可计时生成，因此这条查询能保证速度行不整行消失。
+  const latestTimedGenerationRow = db
+    .prepare(
+      `select
+         model_id as modelId,
+         output_tokens as outputTokens,
+         duration_ms as durationMs,
+         time_to_first_token_ms as timeToFirstTokenMs,
+         completed_at as completedAt
+       from model_usage
+       where session_id = ? and status = 'completed'
+         and query_source in (${GENERATION_QUERY_SOURCES.map(() => "?").join(", ")})
+         and time_to_first_token_ms is not null
+         and duration_ms is not null and duration_ms > time_to_first_token_ms
+         and output_tokens > 0
+       order by completed_at desc, started_at desc, id desc
+       limit 1`,
+    )
+    .get(input.sessionID, ...GENERATION_QUERY_SOURCES) as
+    | {
+        modelId: string | null;
+        outputTokens: number;
+        durationMs: number;
+        timeToFirstTokenMs: number;
+        completedAt: number | null;
+      }
+    | undefined;
+
+  const latestTimedGeneration: SessionUsageTimedGeneration | null = latestTimedGenerationRow
     ? {
-        modelId: latest.modelId,
-        outputTokens: integer(latest.outputTokens),
-        durationMs: latest.durationMs ?? null,
-        timeToFirstTokenMs: latest.timeToFirstTokenMs ?? null,
-        completedAt: latest.completedAt ?? null,
+        modelId: latestTimedGenerationRow.modelId,
+        outputTokens: integer(latestTimedGenerationRow.outputTokens),
+        durationMs: integer(latestTimedGenerationRow.durationMs),
+        timeToFirstTokenMs: integer(latestTimedGenerationRow.timeToFirstTokenMs),
+        completedAt: latestTimedGenerationRow.completedAt ?? null,
       }
     : null;
 
@@ -860,7 +894,7 @@ export async function querySessionUsageDetail(
   return {
     sessionID: input.sessionID,
     billed,
-    latestCompletedRequest,
+    latestTimedGeneration,
     models,
     recentRequests: recentRequests.map((row) => ({
       ...row,
@@ -925,15 +959,17 @@ function inputSideTokensFromStoredUsage(row: {
   return input;
 }
 
+/**
+ * 真实生成请求的 query_source：只有它们带流式计时（首 token 时间）与增量输入基线语义。
+ * 会话标题、提交信息、压缩、目标校验等辅助请求不在其中——它们没有首 token 时间，
+ * 拿它们当"最近一次请求"会让速度与首字延迟整行消失。
+ */
+const GENERATION_QUERY_SOURCES = ["main_turn", "subagent", "workflow_child"] as const;
+
 function taskUsageInputBaselineSource(querySource: string): string | undefined {
-  if (
-    querySource === "main_turn" ||
-    querySource === "subagent" ||
-    querySource === "workflow_child"
-  ) {
-    return querySource;
-  }
-  return undefined;
+  return (GENERATION_QUERY_SOURCES as readonly string[]).includes(querySource)
+    ? querySource
+    : undefined;
 }
 
 function integer(value: number | null | undefined): number {

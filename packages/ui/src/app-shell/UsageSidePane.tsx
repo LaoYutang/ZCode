@@ -1,14 +1,14 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { calculateOutputTps } from "@zcode/shared";
-import type { V4ConversationUsageDetailResult } from "@zcode/shared/zcode-protocol-v4";
 import { LoaderCircleIcon, TriangleAlertIcon } from "lucide-react";
 import { useSessionUsageDetail } from "@/hooks/useSessionUsageDetail.js";
 import { useAppUsageStats } from "@/hooks/useUsageStats.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
-  formatCompactTokenUsage,
-  formatPercent,
-} from "@/settings/usage-stats/usageStatsUiParts.js";
+  formatFirstTokenLatency,
+  formatGenerationTps,
+  resolveGenerationTps,
+} from "@/lib/generationMetricsFormat.js";
+import { formatCompactTokenUsage } from "@/settings/usage-stats/usageStatsUiParts.js";
 import type { UsageSidePaneTab } from "@/lib/workspaceSidePane.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
@@ -23,17 +23,6 @@ function localDateKey(timeZone: string, now: number): string {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date(now));
-}
-
-/**
- * 完成态速度：output ÷ 生成耗时（总耗时减去首 token 前的等待）。
- * 复用 dev 面板同一个 helper，语义是"最近一次完成的请求"，不是流式实时速率。
- */
-function resolveOutputTps(
-  latest: V4ConversationUsageDetailResult["latestCompletedRequest"],
-): number | null {
-  if (!latest || latest.durationMs === null || latest.timeToFirstTokenMs === null) return null;
-  return calculateOutputTps(latest.outputTokens, latest.durationMs - latest.timeToFirstTokenMs);
 }
 
 function MetricCell({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -83,7 +72,6 @@ function UsageSidePaneContent({ tab }: { tab: UsageSidePaneTab }) {
     ...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {}),
   });
   const appUsage = useAppUsageStats("7d");
-  const contextWindow = projection.snapshot?.usage.contextWindow ?? null;
 
   const todayTokens = useMemo(() => {
     if (!appUsage.snapshot) return null;
@@ -96,22 +84,14 @@ function UsageSidePaneContent({ tab }: { tab: UsageSidePaneTab }) {
     return null;
   }, [appUsage.snapshot]);
 
-  const contextValue = contextWindow
-    ? `${formatCompactTokenUsage(locale, contextWindow.usedTokens)} / ${
-        contextWindow.maxTokens === null
-          ? "--"
-          : formatCompactTokenUsage(locale, contextWindow.maxTokens)
-      }`
-    : "--";
-  const contextHint =
-    contextWindow && contextWindow.maxTokens
-      ? formatPercent(locale, contextWindow.usedTokens / contextWindow.maxTokens)
-      : undefined;
-  const tps = resolveOutputTps(detail?.latestCompletedRequest ?? null);
-  const tpsValue =
-    tps === null
-      ? "--"
-      : `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(tps)} t/s`;
+  // 上下文容量与缓存命中率不在这里展示：输入框下方的容量计已经承担（含它自己的 0.78 阈值），
+  // 重复显示只会制造两个可能不一致的数字。本页只放"只能从库里算出来"的对话级用量。
+  const generation = detail?.latestTimedGeneration ?? null;
+  // 速度与首字延迟同源：都取"最近一次可计时的真实生成"，所以两者的模型/时刻总是一致。
+  const tpsValue = formatGenerationTps(locale, resolveGenerationTps(generation)) ?? "--";
+  const firstTokenValue =
+    formatFirstTokenLatency(locale, generation?.timeToFirstTokenMs ?? null) ?? "--";
+  const generationHint = generation?.modelId ?? undefined;
 
   return (
     <div
@@ -174,13 +154,14 @@ function UsageSidePaneContent({ tab }: { tab: UsageSidePaneTab }) {
               )}
             />
             <MetricCell
-              label={intl.formatMessage({ id: "chat.statusPanel.usageContext" })}
-              value={contextValue}
-              {...(contextHint === undefined ? {} : { hint: contextHint })}
-            />
-            <MetricCell
               label={intl.formatMessage({ id: "chat.statusPanel.usageSpeed" })}
               value={tpsValue}
+              {...(generationHint === undefined ? {} : { hint: generationHint })}
+            />
+            <MetricCell
+              label={intl.formatMessage({ id: "chat.statusPanel.usageFirstToken" })}
+              value={firstTokenValue}
+              {...(generationHint === undefined ? {} : { hint: generationHint })}
             />
             <MetricCell
               label={intl.formatMessage({ id: "sidePane.usageToday" })}

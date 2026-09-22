@@ -57,8 +57,12 @@ import type {
   V4ConversationUsageDetailResult,
   WorkflowRunState,
 } from "@zcode/shared/zcode-protocol-v4";
-import { calculateOutputTps } from "@zcode/shared";
 import { useSessionUsageDetail } from "@/hooks/useSessionUsageDetail.js";
+import {
+  formatFirstTokenLatency,
+  formatGenerationTps,
+  resolveGenerationTps,
+} from "@/lib/generationMetricsFormat.js";
 import { formatCompactTokenUsage } from "@/settings/usage-stats/usageStatsUiParts.js";
 import type { OpenUsageSideTabRequest } from "@/lib/workspaceSidePane.js";
 import { cn } from "@/components/lib/utils.js";
@@ -132,7 +136,10 @@ interface ConversationStatusPanelProps {
   endedSubagentCount?: number;
   /** 本 pane 的远端会话标识：用量查询按它选远端 client，不能只按路径匹配。 */
   remoteSessionId?: string;
-  /** 本会话上下文容量读数（live 投影）；会话累计用量不在这里，走用量查询。 */
+  /**
+   * live 投影里的上下文容量读数。**不再用于展示**（容量与缓存命中率由输入框下方的容量计承担），
+   * 只作为"本会话有用量"的同步信号：面板的显示闸门与用量分区开门条件都要它。
+   */
   usageContextWindow?: SessionUsageState["contextWindow"] | null;
   /** 用量重新拉取的触发键：主轮请求完成或子代理变化时恰好变化一次。 */
   usageRefreshKey?: string;
@@ -1044,48 +1051,37 @@ function UsageMetricRow({ label, value }: { label: string; value: string }) {
 /**
  * 用量分区（本会话）。
  *
- * 数据分两路，各有各的所有者：容量是 live 投影（由宿主传进来，面板不自己取 lease）；
- * 会话合计与完成态速度来自一次 RPC 查询——`snapshot.usage.cumulative` 是进程级计数，
- * 冷恢复后归零，不能当会话总量。
+ * 只放"只能从库里算出来"的对话级数字：速度、首字延迟、会话合计、子代理合计。
+ * 上下文容量与缓存命中率**不在这里**——输入框下方的容量计已经显示它们，重复只会产生
+ * 两个可能不一致的数字。
  *
- * 查不到（旧宿主）或没有数据时只隐藏对应行，**不退回另一种口径**：`v4/conversation/usage`
- * 是"前缀只算一次"的增量口径，顶上来会得到与设置→用量对不上的数字。
+ * 数据来自一次 RPC 查询（`snapshot.usage.cumulative` 是进程级计数，冷恢复后归零，
+ * 不能当会话总量）。查不到（旧宿主）或没有数据时只隐藏对应行，**不退回另一种口径**：
+ * `v4/conversation/usage` 是"前缀只算一次"的增量口径，顶上来会得到与设置→用量对不上的数字。
  */
 function UsageStatusSection({
   detail,
-  model,
   onOpenUsage,
   parentSessionId,
   separated,
   unsupported,
 }: {
   detail: V4ConversationUsageDetailResult | null;
-  model: ConversationStatusPanelModel;
   onOpenUsage?: (request: OpenUsageSideTabRequest) => void;
   parentSessionId?: string;
   separated: boolean;
   unsupported: boolean;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const contextWindow = model.usageContextWindow;
-  const latest = detail?.latestCompletedRequest ?? null;
-  const tps =
-    latest && latest.durationMs !== null && latest.timeToFirstTokenMs !== null
-      ? calculateOutputTps(latest.outputTokens, latest.durationMs - latest.timeToFirstTokenMs)
-      : null;
+  // 速度与首字延迟同源：都取"最近一次可计时的真实生成"（后端已排除辅助请求与缺计时的请求）。
+  const generation = detail?.latestTimedGeneration ?? null;
+  const tpsValue = formatGenerationTps(locale, resolveGenerationTps(generation));
+  const firstTokenValue = formatFirstTokenLatency(locale, generation?.timeToFirstTokenMs ?? null);
   const canOpenDetail = Boolean(onOpenUsage && parentSessionId);
 
-  // 用量区在没有容量读数、没有查询结果时只留入口行——两者都没有才整区不渲染。
-  const hasUsageNumbers = Boolean(contextWindow) || Boolean(detail);
-  if (!hasUsageNumbers && !canOpenDetail) return null;
-
-  const contextValue = contextWindow
-    ? `${formatCompactTokenUsage(locale, contextWindow.usedTokens)} / ${
-        contextWindow.maxTokens === null
-          ? "--"
-          : formatCompactTokenUsage(locale, contextWindow.maxTokens)
-      }`
-    : null;
+  // contextual 读数（上下文容量、缓存命中率）不在这里展示：输入框下方的容量计已经承担，
+  // 重复一遍只会制造两个可能不一致的数字。本区只放对话级、只能从库里算出来的量。
+  if (!detail && !canOpenDetail) return null;
 
   return (
     <StatusSection
@@ -1093,22 +1089,30 @@ function UsageStatusSection({
       separated={separated}
       title={intl.formatMessage({ id: "chat.statusPanel.usage" })}
     >
-      {contextValue ? (
-        <UsageMetricRow
-          label={intl.formatMessage({ id: "chat.statusPanel.usageContext" })}
-          value={contextValue}
-        />
-      ) : null}
-      {tps === null ? null : (
+      {tpsValue === null ? null : (
         <UsageMetricRow
           label={intl.formatMessage({ id: "chat.statusPanel.usageSpeed" })}
-          value={`${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(tps)} t/s`}
+          value={tpsValue}
+        />
+      )}
+      {firstTokenValue === null ? null : (
+        <UsageMetricRow
+          label={intl.formatMessage({ id: "chat.statusPanel.usageFirstToken" })}
+          value={firstTokenValue}
         />
       )}
       {detail && detail.billed.modelRequestCount > 0 ? (
         <UsageMetricRow
           label={intl.formatMessage({ id: "chat.statusPanel.usageTotal" })}
           value={formatCompactTokenUsage(locale, detail.billed.totalTokens)}
+        />
+      ) : null}
+      {/* 子代理合计与上方"会话合计"是两个互斥集合（子代理的消耗记在子会话名下），
+          两行并列是为了让"这个会话一共花了多少"可以直接相加，而不是混成一个数。 */}
+      {detail && detail.subagents.totalTokens > 0 ? (
+        <UsageMetricRow
+          label={intl.formatMessage({ id: "sidePane.usageSubagentTotal" })}
+          value={formatCompactTokenUsage(locale, detail.subagents.totalTokens)}
         />
       ) : null}
       {unsupported ? (
@@ -1964,7 +1968,7 @@ function ConversationStatusPanelImpl({
   // 已结束目录入口过去渲染在 Agent StatusSection 之后，视觉和 DOM 都被提升成
   // 并列顶层 section。Agent 的运行态和已结束目录属于同一领域，统一由 Agent 折叠分组承载。
   const canRenderAgents = model.runningSubagentWorks.length > 0 || canRenderEndedAgents;
-  // 用量区只要拿到容量读数（live）或有查询结果就渲染；它的入口行还会单独开门，
+  // 用量区只要"本会话有用量"（live 容量读数）或就是一个真实会话就渲染；入口行单独开门，
   // 保证旧宿主下也能进明细页看到"不支持"的说明而不是什么都没有。
   const canRenderUsage = Boolean(model.usageContextWindow) || Boolean(parentSessionId);
   const handlePanelModeChange = useCallback(
@@ -2213,7 +2217,6 @@ function ConversationStatusPanelImpl({
             ) : null}
             {canRenderUsage ? (
               <UsageStatusSection
-                model={model}
                 detail={usageDetail}
                 unsupported={usageUnsupported}
                 separated={

@@ -1082,12 +1082,20 @@ export interface SessionUsageBilledTotals {
   modelRequestCount: number;
 }
 
-/** 最近一次完成的模型请求，供派生完成态速度（t/s）用。 */
-export interface SessionUsageLatestRequest {
+/**
+ * 最近一次**可计时**的真实生成（速度与首字延迟的唯一来源）。
+ *
+ * 只可能是真实生成请求（`main_turn` / `subagent` / `workflow_child`），且首 token 时间与总耗时
+ * 都存在、`durationMs > timeToFirstTokenMs`、输出非空。理由是实测得到的：辅助请求（会话标题、
+ * 提交信息、目标校验）没有首 token 时间；真实生成里也有按请求缺失首 token 时间的（某模型
+ * 1137/4177 条）。这两类都会让"速度/首字延迟"整行消失，所以这里跳过它们、只取最近一条可计时的。
+ * 不用 `outputTokens / durationMs` 兜底：两种口径实测差 3.5 倍（78.0 vs 270.7 t/s）。
+ */
+export interface SessionUsageTimedGeneration {
   modelId: string | null;
   outputTokens: number;
-  durationMs: number | null;
-  timeToFirstTokenMs: number | null;
+  durationMs: number;
+  timeToFirstTokenMs: number;
   completedAt: number | null;
 }
 
@@ -1142,7 +1150,7 @@ export interface SessionUsageDetailQueryResult {
   sessionID: SessionId;
   /** 本会话（不含子代理会话）的计费口径合计。 */
   billed: SessionUsageBilledTotals;
-  latestCompletedRequest: SessionUsageLatestRequest | null;
+  latestTimedGeneration: SessionUsageTimedGeneration | null;
   models: SessionUsageModelRow[];
   recentRequests: SessionUsageRequestRow[];
   tools: SessionUsageToolRow[];

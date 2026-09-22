@@ -6,6 +6,8 @@
 
 对 fork / 社区版而言，这会导致两个问题：打包后的版本会提示官方升级；官方的远端强更配置可以阻止 fork 启动。
 
+第一个问题由本文的更新源解耦解决。第二个问题在后续变更中改为**彻底移除启动期强更闸**：让第三方远端配置永远不能阻止本产品的启动，不再依赖"更新源是否官方"这一条件间接达成（见第 4 节）。
+
 ## 规则
 
 ### 1. 更新源与产品身份解耦
@@ -33,9 +35,23 @@
 
 `packages/desktop/src/main/autoUpdater.ts` 的 `menuState` 仍是更新状态的**唯一所有者**。`github-release` 模式只是更换 provider 与动作语义，不引入第二条状态写入路径：菜单、托盘、独立更新窗口、标题栏入口继续消费同一份 `UpdateStatePayload` 广播。
 
-### 4. 远端强更闸只在官方源下生效
+### 4. 启动期远端强更闸已移除
 
-`maybeBlockStartupForForceUpdate` 请求官方 `/api/v1/client/configs`，版本低于 `minimalVersion` 时会阻止创建主窗口。该闸仅在 `ZCODE_UPDATE_SOURCE === "zcode-manifest"`（即仍从官方源取更新）时执行：不接官方更新源的构建，官方也不应有权阻止其启动。
+主进程**不再因远端 `minimalVersion` 阻止创建主窗口**：该闸读取官方 `/api/v1/client/configs` 的 `minimalVersion` 并与本机版本比较，这条链路已随模块一起删除。任何远端配置都无法阻止本产品启动。
+
+（注意区分：`/api/v1/client/configs` 仍被单特性灰度 rollout 使用（`singleFeatureRollout.ts` / `desktopContextPromptRollout.ts`），那是功能开关，与启动无关，也不读 `minimalVersion`。）
+
+移除原因：该闸的语义是"官方有权判死客户端"，只对官方分发链路成立。此前的实现把它收窄为"仅 `ZCODE_UPDATE_SOURCE === "zcode-manifest"` 时生效"，但那个条件描述的是**更新源**，不是**启动权**——只要构建期漏设 `ZCODE_UPDATE_REPOSITORY`（例如手动跑 `pnpm bundle:desktop`），产物就会落回官方源并被官方闸拦下，即便与官方分发链路无关。以构建输入决定"官方能否阻止我启动"本身就是错的耦合，因此直接去掉能力，而不是再加一层判断。
+
+随之删除的、只服务于该闸的代码（保持"删除就删干净，不留恒为空的开关"）：
+
+- `packages/desktop/src/main/forceUpdateGuard.ts`（远端配置请求 + 判定 + 阻止窗口）
+- `packages/desktop/src/main/forceUpdatePrompt.ts`（强更弹窗）
+- `packages/shared/src/forceUpdate.ts`、`getForceUpdateMinimalVersionFromConfig`
+- `autoUpdater.ts` 的 `requestForceAutoUpdate` / `ForceAutoUpdateState` 与相关监听变量
+- `index.ts` 的 `forceUpdateMainWindowCreationBlocked` / `focusForceUpdateGateWindow`，以及 second-instance、open-url 两条 deep link 路径上的"强更期间忽略请求"分支
+
+保留的边界：本地未打包运行时（`app.isPackaged === false`）不再需要任何跳过逻辑，因为已经没有任何启动闸；更新检查、下载、安装的常规状态机不受影响。
 
 ### 5. 保留的边界
 
@@ -103,10 +119,13 @@ Windows / macOS 的 channel 文件名不带架构后缀（见 `app-builder-lib` 
 2. 悬浮更新入口 → 展示的是该 Release 的说明正文（commit 列表），标题为版本号。
 3. 点击主按钮 → 系统浏览器打开该 Release 页面；再次打开入口仍可见。
 4. 本地版本不低于 Release 版本 → 静默 idle，无提示。
-5. `ZCODE_UPDATE_REPOSITORY` 未设置的 production 构建 → 行为与改造前完全一致（官方 manifest、自动下载安装、强更闸生效）。
-6. `ZCODE_UPDATE_REPOSITORY` 已设置的构建 → 不请求 `zcode.z.ai`，且启动不被官方强更闸阻止。
+5. `ZCODE_UPDATE_REPOSITORY` 未设置的 production 构建 → 检测官方 manifest、按设置自动下载安装；**启动不受任何远端配置阻止**。
+6. `ZCODE_UPDATE_REPOSITORY` 已设置的构建 → 不请求 `zcode.z.ai`，启动同样不受远端配置阻止。
 7. `github-release` 模式下的设置页不出现"接收 preview 更新"与"自动下载并安装"。
+8. 任意更新源下，把主进程版本号改成低于官方 `minimalVersion`（例如 tag 决定的 `0.2.0`）并打包安装 → 仍能正常创建主窗口并进入主界面。
 
 ## 测试
 
 `packages/desktop/test/desktopUpdateSource.test.mjs` 覆盖 `ZCODE_UPDATE_SOURCE` 三态表与 `owner/repo` 校验。`autoUpdater` 状态机本身无既有测试网，行为变更靠真实链路验证（见发布侧前置条件）。
+
+场景 8 的"移除前"行为已实测：`ZCODE_UPDATE_SOURCE = zcode-manifest`、版本 `0.2.0`（HEAD 落在 tag `v0.2.0`）的安装包启动时被官方 `minimalVersion`（实测返回 `3.5.3`）拦下，只能退出。"移除后"的复验需要重新打包安装，尚未执行。

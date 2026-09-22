@@ -226,14 +226,19 @@ env -u ZCODE_BUILTIN_PROVIDER_CONFIG_FILE -u ZCODE_DATA_BASE_DIR pnpm bundle:des
 运行时不受影响：`selectReleaseCandidate` 会丢弃无法解码的缓存并以打包文件为准，且打包文件 `revision` 已升到 32，
 下次启动即覆盖旧缓存。
 
-### 3. 官方强更闸会拦下开发版本的打包构建
+### 3. 官方强更闸会拦下开发版本的打包构建（已通过移除该闸解决）
+
+**结论：启动期强更闸已从代码中移除**，见 `specs/update/desktop-auto-update-source.md` 第 4 节。现在打包自建产物不再需要设置 `ZCODE_UPDATE_REPOSITORY` 来规避它。
+
+以下记录当时的现象与那条"靠构建输入绕过"的旧方案，作为历史证据保留：
 
 打包出的安装包首次启动被"需要升级 ZCode / 当前版本无法继续使用"挡住，与本变更无关，而是构建期更新源没有断开：
 
-`packages/desktop/src/main/index.ts` 的启动闸条件是
+`packages/desktop/src/main/index.ts` 的启动闸条件曾是
 `usesOfficialUpdateSource() && app.isPackaged`。开发态构建的版本号由 git tag 决定，没有 tag 时回落
 `0.0.0-dev`（见 `resolveAppVersion`），低于官方 `minimalVersion`；一旦 `app.isPackaged === true`
-（真实安装包），官方强更闸就会阻止创建主窗口。
+（真实安装包），官方强更闸就会阻止创建主窗口。实测官方 `/api/v1/client/configs` 返回的
+`minimalVersion` 为 `3.5.3`，`0.2.0` 这类 tag 版本必然被判需要升级。
 
 构建期证据（tsup 注入日志）：
 
@@ -242,15 +247,8 @@ env -u ZCODE_BUILTIN_PROVIDER_CONFIG_FILE -u ZCODE_DATA_BASE_DIR pnpm bundle:des
 [tsup] ZCODE_ENV=production ZCODE_PRODUCT_FLAVOR=production ZCODE_UPDATE_SOURCE=github-release    ← 正常启动
 ```
 
-因此**打包自建产物时必须设置 `ZCODE_UPDATE_REPOSITORY`**（本仓库远端为 `LaoYutang/ZCode-Lite`），
-它把更新源切到自己的 GitHub Release，官方强更闸随之失效——这正是
-`specs/update/desktop-auto-update-source.md` 为 fork 设计的出口，不需要改代码：
-
-```bash
-env -u ZCODE_BUILTIN_PROVIDER_CONFIG_FILE -u ZCODE_DATA_BASE_DIR \
-  ZCODE_UPDATE_REPOSITORY=LaoYutang/ZCode-Lite \
-  pnpm bundle:desktop -- --os win --arch x64
-```
+旧方案是设置 `ZCODE_UPDATE_REPOSITORY`（本仓库远端为 `LaoYutang/ZCode-Lite`），
+把更新源切到自己的 GitHub Release，官方强更闸随之失效。该方案现已不必使用——闸本身不存在了。
 
 不要用 `ZCODE_RELEASE_TAG` 伪造版本来绕过这个闸：版本只应由 git tag 决定，开发构建保持 `0.0.0-dev`。
 `github-release` 源下更新入口仍存在，只在用户点击时提示并跳转到该仓库的 Release 页面，不自动下载安装。

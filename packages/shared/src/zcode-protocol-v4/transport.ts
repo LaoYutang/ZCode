@@ -802,12 +802,13 @@ export const v4ConversationUsageDetailResultSchema = z
   .object({
     sessionId: z.string().min(1),
     billed: v4SessionUsageBilledTotalsSchema,
-    latestCompletedRequest: z
+    // 速度与首字延迟的唯一来源：最近一次可计时的真实生成（辅助请求与缺首 token 时间的请求都被跳过）。
+    latestTimedGeneration: z
       .object({
         modelId: z.string().nullable(),
         outputTokens: z.number().int().nonnegative(),
-        durationMs: z.number().int().nonnegative().nullable(),
-        timeToFirstTokenMs: z.number().int().nonnegative().nullable(),
+        durationMs: z.number().int().nonnegative(),
+        timeToFirstTokenMs: z.number().int().nonnegative(),
         completedAt: z.number().int().nullable(),
       })
       .strict()

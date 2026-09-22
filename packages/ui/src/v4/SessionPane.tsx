@@ -3836,6 +3836,11 @@ export function SessionPane({
       workspacePath,
     ],
   );
+  // 会话用量的重新拉取信号：主轮 model request 完成时 `cumulative.outputTokens` 恰好变一次，
+  // 子代理的生命周期变化由 `subagents.revision` 承载。`snapshot.revision` **不能**当信号——
+  // usage 不属于它的承载字段，usage-only 的推送不会 bump 它（见 projection-state.ts 的注释）。
+  // 注意这是"每次 API 请求完成"的粒度，不是流式过程中的逐 chunk 粒度。
+  const usageRefreshKey = `${snapshot?.usage.cumulative.outputTokens ?? 0}:${subagents.revision}`;
   const runningBackgroundWorkCount =
     statusPanelModel.runningBashWorks.length +
     statusPanelModel.runningSubagentWorks.length +
@@ -4557,6 +4562,7 @@ export function SessionPane({
             endedSubagentCount={subagents.endedTotal}
             remoteSessionId={remoteSessionId ?? undefined}
             usageContextWindow={snapshot?.usage.contextWindow ?? null}
+            usageRefreshKey={usageRefreshKey}
             rootSessionId={rootSessionId ?? sessionId ?? undefined}
             parentSessionId={sessionId ?? undefined}
             layoutMode={statusPanelLayout}

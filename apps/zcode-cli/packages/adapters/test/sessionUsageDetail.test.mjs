@@ -154,6 +154,34 @@ function seedDb() {
     startedAt: 5000,
     computedTotalTokens: 999,
   });
+  // 辅助请求（会话标题）比所有生成都晚完成：它计费、但没有首 token 时间，
+  // 因此不能成为速度/首字延迟的来源。
+  insertModelUsage(db, {
+    id: "r6",
+    sessionId: PARENT,
+    modelId: "m4",
+    querySource: "session_title",
+    status: "completed",
+    startedAt: 8900,
+    completedAt: 9000,
+    durationMs: 100,
+    inputTokens: 20,
+    computedTotalTokens: 20,
+  });
+  // 真实生成、但缺首 token 时间（实测某模型 1137/4177 条如此，first_token_at 也为空）。
+  // 它比 r3 更晚完成，仍不能当来源——否则速度与首字延迟会整行消失。
+  insertModelUsage(db, {
+    id: "r7",
+    sessionId: PARENT,
+    modelId: "m3",
+    status: "completed",
+    startedAt: 9300,
+    completedAt: 9500,
+    durationMs: 5000,
+    inputTokens: 4500,
+    outputTokens: 500,
+    computedTotalTokens: 5000,
+  });
 
   insertModelUsage(db, {
     id: "sa1",
@@ -217,14 +245,16 @@ test("计费口径只累加 completed 请求，且与按模型分组可对账", 
   const db = seedDb();
   const detail = await querySessionUsageDetail(db, { sessionID: PARENT });
 
+  // 含辅助请求（会话标题 r6）与缺首 token 时间的生成（r7）：它们都是真实发生的计费请求，
+  // 该进合计；只有"速度/首字延迟的来源"不吃它们。
   assert.deepEqual(detail.billed, {
-    totalTokens: 385,
-    inputTokens: 350,
-    outputTokens: 35,
+    totalTokens: 5405,
+    inputTokens: 4870,
+    outputTokens: 535,
     reasoningTokens: 3,
     cacheCreationTokens: 5,
     cacheReadTokens: 180,
-    modelRequestCount: 3,
+    modelRequestCount: 5,
   });
 
   const modelsTotal = detail.models.reduce((sum, row) => sum + row.totalTokens, 0);
@@ -234,26 +264,31 @@ test("计费口径只累加 completed 请求，且与按模型分组可对账", 
   assert.deepEqual(
     detail.models.map((row) => [row.modelId, row.totalTokens]),
     [
+      ["m3", 5000],
       ["m1", 330],
       ["m2", 55],
+      ["m4", 20],
     ],
   );
 });
 
-test("最近一次完成请求用于派生速度，且逐请求明细按完成时间倒序、受 limit 约束", async () => {
+test("速度与首字延迟的来源只取可计时的真实生成，且逐请求明细按完成时间倒序、受 limit 约束", async () => {
   const db = seedDb();
   const detail = await querySessionUsageDetail(db, { sessionID: PARENT, recentRequestLimit: 2 });
 
-  assert.deepEqual(detail.latestCompletedRequest, {
+  // r7（更晚，但缺首 token 时间）与 r6（更晚，但是会话标题这类辅助请求）都必须被跳过，
+  // 因此来源是 r3。跳过它们正是"速度/首字延迟不整行消失"的前提。
+  assert.deepEqual(detail.latestTimedGeneration, {
     modelId: "m2",
     outputTokens: 5,
     durationMs: 60,
     timeToFirstTokenMs: 10,
     completedAt: 3100,
   });
+  // 逐请求明细则不受"可计时"限制：它要能对上合计，所以辅助请求与缺计时请求都在列。
   assert.deepEqual(
     detail.recentRequests.map((row) => row.requestId),
-    ["r3", "r2"],
+    ["r7", "r6"],
   );
 });
 
@@ -279,7 +314,7 @@ test("子代理只认 task_type=subagent_child，带用量的侧边会话不计�
   );
   assert.equal(detail.subagents.totalTokens, 400);
   // 子代理用量单独成块：不得混进本会话合计（否则同一笔消耗会被算两次）。
-  assert.equal(detail.billed.totalTokens, 385);
+  assert.equal(detail.billed.totalTokens, 5405);
 });
 
 test("保留期随结果返回，未知会话返回零值而不是别的会话数据", async () => {
@@ -289,7 +324,7 @@ test("保留期随结果返回，未知会话返回零值而不是别的会话�
   assert.equal(detail.retentionDays, 30);
   assert.equal(detail.billed.totalTokens, 0);
   assert.equal(detail.billed.modelRequestCount, 0);
-  assert.equal(detail.latestCompletedRequest, null);
+  assert.equal(detail.latestTimedGeneration, null);
   assert.deepEqual(detail.models, []);
   assert.deepEqual(detail.recentRequests, []);
   assert.deepEqual(detail.subagents.children, []);

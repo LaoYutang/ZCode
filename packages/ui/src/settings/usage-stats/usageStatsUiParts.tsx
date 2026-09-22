@@ -22,13 +22,6 @@ export function formatCompactTokenUsage(locale: string, value: number): string {
   return formatCompactTokenNumber(locale, value);
 }
 
-export function formatSummaryCompactTokenUsage(locale: string, value: number): string {
-  const formatted = formatCompactTokenUsage(locale, value);
-
-  // 通用紧凑格式会把中文单位直接贴在数字后；摘要卡片与相邻的时长、天数指标统一保留单位间距。
-  return locale.startsWith("zh") ? formatted.replace(/(?<=\d)(?=[万亿])/u, " ") : formatted;
-}
-
 export function formatPercent(locale: string, value: number): string {
   return new Intl.NumberFormat(locale, {
     style: "percent",

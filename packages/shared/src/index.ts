@@ -283,7 +283,6 @@ export * from "./permission-request-preview.js";
 export * from "./settings-sync.js";
 export * from "./uuid.js";
 export * from "./usage-stats.js";
-export * from "./forceUpdate.js";
 export * from "./intranetProbe.js";
 export * from "./intranetDefaults.js";
 export * from "./hooks.js";

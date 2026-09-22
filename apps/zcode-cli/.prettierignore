@@ -4,3 +4,8 @@
 # 校验的是「与生成器输出逐字节一致」，两者无法同时满足。因此这里按生成器口径排除，
 # 需要改内容就改生成器再跑 `pnpm registry:generate`。
 packages/core/src/tool/handlers/generated/
+
+# 构建产物同样不参与格式化：node-repl-host 的 dist-types 是被 git 跟踪的 tsc 输出
+# （与 dist/ 不同，它不在 .gitignore 里，因此会落进格式化目标）。格式化它只会让任何一次
+# 重新构建都把 format:check 变红——这也是本仓 1300+ 文件格式化告警的主要来源之一。
+packages/node-repl-host/dist-types/

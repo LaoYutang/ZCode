@@ -117,8 +117,9 @@ export interface ConversationStatusPanelModel {
   runningSubagentWorks: ConversationStatusPanelRunningSubagent[];
   runningWorkflowRuns: ConversationStatusPanelWorkflowRun[];
   /**
-   * 本会话的上下文容量读数（live 投影）。只承载"这一轮到底用了多少上下文"，
-   * 会话累计用量不在这里：它是进程级计数，冷恢复后归零，真实累计要走 RPC 查询。
+   * live 投影里的上下文容量读数。**不用于展示**（面板不显示上下文与缓存命中率），
+   * 只当"本会话有用量"的同步信号用：它是冷恢复也会被回填的字段，因此比进程级的
+   * `usage.cumulative` 可靠；真实累计用量走 RPC 查询。
    */
   usageContextWindow: SessionUsageState["contextWindow"] | null;
 }
