@@ -39,8 +39,9 @@ export const ZCODE_PRODUCT_FLAVOR = normalizeZCodeProductFlavor(
 );
 
 /**
- * 自动更新源。与产品身份解耦：配了自己的 GitHub Release 时用 `github-release`，
- * 否则沿用官方 manifest（production）或禁用（preview）。
+ * 自动更新源。与产品身份解耦：桌面构建由 `packages/desktop/scripts/desktop-update-source.mjs`
+ * 在构建期注入显式取值（自有 GitHub Release，或 Preview 身份的 `disabled`），
+ * **不回退官方 manifest**；只有未注入 define 的 bundle（web、CLI、测试）才落到下面按 flavor 的旧语义。
  * 主进程与渲染端都从它派生，避免两处各自判断 flavor。
  */
 export type ZCodeUpdateSource = "disabled" | "zcode-manifest" | "github-release";

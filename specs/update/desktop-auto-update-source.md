@@ -8,17 +8,19 @@
 
 第一个问题由本文的更新源解耦解决。第二个问题在后续变更中改为**彻底移除启动期强更闸**：让第三方远端配置永远不能阻止本产品的启动，不再依赖"更新源是否官方"这一条件间接达成（见第 4 节）。
 
+此后又发现"解耦"本身还留着一个口子：更新源是**构建期输入**，调用方漏传 `ZCODE_UPDATE_REPOSITORY` 就回退官方源——手动跑 `pnpm bundle:desktop` 打出来的包正是这样落回官方 manifest 的，于是本地 0.2.0 的包会长期提示官方 3.14.x 有更新。第 6 节记录了收口方式：桌面构建的回退值改为**本产品自己的 Release**。
+
 ## 规则
 
 ### 1. 更新源与产品身份解耦
 
-新增构建期输入 `ZCODE_UPDATE_REPOSITORY`（`owner/repo`），解析成编译期常量 `ZCODE_UPDATE_SOURCE`，取值三态：
+新增构建期输入 `ZCODE_UPDATE_REPOSITORY`（`owner/repo`），解析成编译期常量 `ZCODE_UPDATE_SOURCE`：
 
-| `ZCODE_UPDATE_REPOSITORY` | flavor       | `ZCODE_UPDATE_SOURCE` | 行为                                          |
-| ------------------------- | ------------ | --------------------- | --------------------------------------------- |
-| 已设置                    | 任意         | `github-release`      | 检测自己的 GitHub Release，仅提示并跳转下载页 |
-| 未设置                    | `production` | `zcode-manifest`      | **现状不变**：官方 manifest + 自动下载安装    |
-| 未设置                    | `preview`    | `disabled`            | 同今天：不启用更新器                          |
+| `ZCODE_UPDATE_REPOSITORY` | flavor       | `ZCODE_UPDATE_SOURCE` | 行为                                              |
+| ------------------------- | ------------ | --------------------- | ------------------------------------------------- |
+| 已设置                    | 任意         | `github-release`      | 检测指定仓库的 GitHub Release，仅提示并跳转下载页 |
+| 未设置                    | `production` | `github-release`      | 检测 `DEFAULT_UPDATE_REPOSITORY`（见第 6 节）     |
+| 未设置                    | `preview`    | `disabled`            | 不启用更新器                                      |
 
 `ZCODE_UPDATE_SOURCE` 是更新相关行为的**单一事实来源**，主进程与渲染端都从它派生，不再各自判断 flavor。`owner/repo` 非法时构建期直接失败。
 
@@ -57,6 +59,18 @@
 
 - `ZCODE_UPDATE_FEED_URL` / `--zcode-update-feed-url` 的"打包态忽略"逻辑**保持不动**。新机制是构建期的，不重新打开"环境变量改道正式包"这个口子。
 - `ZCODE_UPDATE_REPOSITORY` 只作为构建期输入，不做运行期读取。
+
+### 6. 桌面构建的回退值 = 本产品自己的 Release
+
+`packages/desktop/scripts/desktop-update-source.mjs` 导出 `DEFAULT_UPDATE_REPOSITORY = "LaoYutang/ZCode-Lite"`：未显式配置 `ZCODE_UPDATE_REPOSITORY` 时，production 身份的桌面构建用它，**桌面构建因此不再产出 `zcode-manifest`**。
+
+为什么必须收口（实测经过）：更新源是构建期输入，调用方漏传就回退官方源；官方 Release 属于另一条产品线，版本号 `3.14.x` 与本仓库的 `0.x` 不可比，于是本地包会长期停留在一个"有更新"提示上。更危险的是 manifest 模式是**真更新器**：设置页里"自动下载并安装"开关一旦打开，点更新会把官方客户端装进本产品的安装目录。而这个回退同样是把官方远端配置接进本产品的入口——移除强更闸前的拦启动问题也来自这里。
+
+配套语义（不是顺手改的，是这条回退的必然结果）：
+
+- `github-release` 模式下设置页不显示"接收 preview 更新"与"自动下载并安装"（`usesOfficialUpdateSource()` 为 false），因此该模式**永远不会自动安装**，只提示并跳转下载页。
+- `ZCODE_UPDATE_REPOSITORY` 优先级最高，临时验证别的仓库（含 fork）不需要改代码。
+- `zcode-manifest` 仍是 `@zcode/shared` 里合法的取值，但只由**未注入 define 的 bundle**（web/CLI/测试）沿用旧语义命中。
 
 ## 失败语义
 
@@ -119,13 +133,27 @@ Windows / macOS 的 channel 文件名不带架构后缀（见 `app-builder-lib` 
 2. 悬浮更新入口 → 展示的是该 Release 的说明正文（commit 列表），标题为版本号。
 3. 点击主按钮 → 系统浏览器打开该 Release 页面；再次打开入口仍可见。
 4. 本地版本不低于 Release 版本 → 静默 idle，无提示。
-5. `ZCODE_UPDATE_REPOSITORY` 未设置的 production 构建 → 检测官方 manifest、按设置自动下载安装；**启动不受任何远端配置阻止**。
-6. `ZCODE_UPDATE_REPOSITORY` 已设置的构建 → 不请求 `zcode.z.ai`，启动同样不受远端配置阻止。
+5. `ZCODE_UPDATE_REPOSITORY` 未设置的 production 构建 → 检测 `DEFAULT_UPDATE_REPOSITORY` 的 Release，**不请求官方 manifest**（回归防线：产物里必须是 `"github-release"` 而不是 `"zcode-manifest"`）；启动不受任何远端配置阻止。
+6. `ZCODE_UPDATE_REPOSITORY` 已设置的构建 → 检测该仓库，不请求 `zcode.z.ai`，启动同样不受远端配置阻止。
 7. `github-release` 模式下的设置页不出现"接收 preview 更新"与"自动下载并安装"。
 8. 任意更新源下，把主进程版本号改成低于官方 `minimalVersion`（例如 tag 决定的 `0.2.0`）并打包安装 → 仍能正常创建主窗口并进入主界面。
 
 ## 测试
 
-`packages/desktop/test/desktopUpdateSource.test.mjs` 覆盖 `ZCODE_UPDATE_SOURCE` 三态表与 `owner/repo` 校验。`autoUpdater` 状态机本身无既有测试网，行为变更靠真实链路验证（见发布侧前置条件）。
+`packages/desktop/test/desktopUpdateSource.test.mjs` 覆盖 `ZCODE_UPDATE_SOURCE` 解析表与 `owner/repo` 校验，其中"未配仓库时回退到本产品自己的 Release"一条同时断言 `notEqual(..., "zcode-manifest")`，防止回退值被改回官方源。该文件由 `pnpm --filter @zcode/desktop test` 运行；**CI 目前没有任何 workflow 跑它**（发布流水线只做产物与 channel 文件校验），所以它是本地防线，不是发布门禁——需要门禁时应显式加一步。`autoUpdater` 状态机本身无既有测试网，行为变更靠真实链路验证（见发布侧前置条件）。
 
-场景 8 的"移除前"行为已实测：`ZCODE_UPDATE_SOURCE = zcode-manifest`、版本 `0.2.0`（HEAD 落在 tag `v0.2.0`）的安装包启动时被官方 `minimalVersion`（实测返回 `3.5.3`）拦下，只能退出。"移除后"的复验需要重新打包安装，尚未执行。
+场景 8 的"移除前"行为已实测：`ZCODE_UPDATE_SOURCE = zcode-manifest`、版本 `0.2.0`（HEAD 落在 tag `v0.2.0`）的安装包启动时被官方 `minimalVersion`（实测返回 `3.5.3`）拦下，只能退出。"移除后"已复验：同一构建输入（仍未设 `ZCODE_UPDATE_REPOSITORY`）重新打包的安装包安装后能正常进入主界面，只剩一条普通更新提示（用户实测，2026-09-22）。
+
+场景 5 的新回退值已用**产物取证**验证（2026-09-22）：仍不传 `ZCODE_UPDATE_REPOSITORY`、只给 `ZCODE_ENV=production` 的构建，`app.asar` 里三处 bundle 注入点都变成 `github-release` + 仓库串：
+
+```
+var Az = u_("github-release", l_), zz = "LaoYutang/ZCode-Lite".trim()   // 渲染端
+var Ja = sg("github-release", ag), cg = "LaoYutang/ZCode-Lite".trim()   // 主进程 chunk
+var SS = $f("github-release", Pf), _S = "LaoYutang/ZCode-Lite".trim()   // 另一 chunk
+```
+
+改动前同一条命令产出的是 `u_("zcode-manifest", ag)` + `"".trim()`。取证时注意：`zcode-manifest` 字符串**仍会出现在产物里**（`normalizeZCodeUpdateSource` 的取值白名单与"未注入 define"时的 flavor 回退），判断是否生效要看注入点的实参，不能只 grep 字面量。产物：`dist/ZCode-0.2.0-win-x64.exe`，163,059,846 B，sha256 `6c2845ef16c24c9a7fbaef0b1ea8e91755defe2bbc6724685fbb222f8bea0e67`；脚本自带的 runtime 依赖校验、体积审计（155.5 MiB / 上限 500 MiB）与 `latest.yml` channel 文件校验全绿。
+
+已执行的门禁：`pnpm typecheck` 通过；`pnpm lint` 0 error / 33 warning（均为存量）；`node --test test/desktopUpdateSource.test.mjs` 9 例全通过；改动文件 `oxfmt --check` 全绿。
+
+换成自有源之后"提示消失"这件事也核对了（2026-09-22）：`GET /repos/LaoYutang/ZCode-Lite/releases/latest` 返回 `v0.2.0`（非 draft、非 prerelease，资产含 `latest.yml` / `latest-win-x64.exe` 等），与本包版本 0.2.0 相同 → `update-available` 不成立，入口回到 idle。同一时刻官方 manifest 报的是 3.14.3（另一条产品线），这正是之前那条提示的来源；它只在**旧包**（仍是 `zcode-manifest`）上继续存在，装上本包后消失。该 Release 也是 v0.1.0 之后第二条，说明 tag → draft → 资产 → 转正的发布链路已在跑。

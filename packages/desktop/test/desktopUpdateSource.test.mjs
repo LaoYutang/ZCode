@@ -5,7 +5,10 @@ import {
   resolveAppVersion,
   resolveReleaseTag,
 } from "../scripts/build-metadata.mjs";
-import { resolveDesktopUpdateSource } from "../scripts/desktop-update-source.mjs";
+import {
+  DEFAULT_UPDATE_REPOSITORY,
+  resolveDesktopUpdateSource,
+} from "../scripts/desktop-update-source.mjs";
 
 // 版本解析与更新源解析都是构建期决策，出错会直接产出错误产物（版本对不上、更新源指错），
 // 因此这里覆盖三态表与全部优先级分支。见 specs/build/app-version-source.md 与
@@ -85,13 +88,16 @@ test("更新源：配了仓库就是 github-release，与产品身份无关", ()
   );
 });
 
-test("更新源：未配仓库时沿用 identity 规则（改造前行为）", () => {
+test("更新源：未配仓库时回退到本产品自己的 Release，绝不回退官方 manifest", () => {
   assert.deepEqual(resolveDesktopUpdateSource({ ZCODE_ENV: "production" }), {
-    kind: "zcode-manifest",
-    repository: null,
-    owner: null,
-    repo: null,
+    kind: "github-release",
+    repository: DEFAULT_UPDATE_REPOSITORY,
+    owner: "LaoYutang",
+    repo: "ZCode-Lite",
   });
+  // 回归防线：production 身份下任何输入都不允许产出官方 manifest 源。
+  assert.notEqual(resolveDesktopUpdateSource({ ZCODE_ENV: "production" }).kind, "zcode-manifest");
+
   assert.equal(resolveDesktopUpdateSource({ ZCODE_ENV: "test" }).kind, "disabled");
   assert.equal(resolveDesktopUpdateSource({}).kind, "disabled");
 
@@ -111,9 +117,10 @@ test("更新源：非法 owner/repo 在构建期直接失败", () => {
     );
   }
 
-  // 空白等于未配置，不抛错。
+  // 空白等于未配置，不抛错，走 production 的默认仓库。
   assert.equal(
-    resolveDesktopUpdateSource({ ZCODE_UPDATE_REPOSITORY: "   ", ZCODE_ENV: "production" }).kind,
-    "zcode-manifest",
+    resolveDesktopUpdateSource({ ZCODE_UPDATE_REPOSITORY: "   ", ZCODE_ENV: "production" })
+      .repository,
+    DEFAULT_UPDATE_REPOSITORY,
   );
 });

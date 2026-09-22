@@ -36,7 +36,7 @@ on:
         default: false
         type: boolean
       update_repository:
-        description: "更新源仓库 owner/repo（留空则沿用官方更新源；填了可验证 GitHub Release 检测）"
+        description: "更新源仓库 owner/repo（留空则用构建期默认的自有 Release，不回退官方源；填了可临时验证别的仓库）"
         required: false
         default: ""
         type: string
