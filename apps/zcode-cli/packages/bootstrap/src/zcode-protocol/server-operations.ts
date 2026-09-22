@@ -2934,8 +2934,11 @@ export async function getTaskTokenUsage(
 
 /**
  * 会话用量明细：**计费口径**（`sum(computed_total_tokens)` 原始求和，只算 completed），
- * 与 `usage/stats` 的全应用口径同源，也与 `getTaskTokenUsage` 的增量口径不同——后者按
- * `inputBaselineBySource` 把重复前缀只算一次，两者不可相加、不可互相替代。
+ * 与 `getTaskTokenUsage` 的增量口径不同——后者按 `inputBaselineBySource` 把重复前缀只算
+ * 一次，两者不可相加、不可互相替代。
+ *
+ * 与 `usage/stats` 的全局口径也不是同源：那条查询只按时间窗过滤、**不按 status 过滤**，
+ * 所以同一次对话在两处得到的数字本来就不会相等，不要拿一边去校验另一边。
  *
  * 取数只认请求里的 sessionId：会话不存在或没有用量时返回零值，不回退到别的会话，
  * 也不按 workspace 或"最近活跃"去猜（多窗格场景下任何启发式都会串数据）。

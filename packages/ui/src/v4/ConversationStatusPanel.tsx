@@ -64,7 +64,6 @@ import {
   resolveGenerationTps,
 } from "@/lib/generationMetricsFormat.js";
 import { formatCompactTokenUsage } from "@/settings/usage-stats/usageStatsUiParts.js";
-import type { OpenUsageSideTabRequest } from "@/lib/workspaceSidePane.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -143,7 +142,6 @@ interface ConversationStatusPanelProps {
   usageContextWindow?: SessionUsageState["contextWindow"] | null;
   /** 用量重新拉取的触发键：主轮请求完成或子代理变化时恰好变化一次。 */
   usageRefreshKey?: string;
-  onOpenUsage?: (request: OpenUsageSideTabRequest) => void;
   rootSessionId?: string;
   parentSessionId?: string;
   /** 当前 pane 是否由手机 Web 远控壳承载。 */
@@ -266,7 +264,7 @@ const STATUS_SECTION_SCROLL_POLICY = {
   // workflow 行与 terminal / agent 行同高（两行 + 控制），限高沿用同一档。
   workflow: "max-h-48",
   agent: "max-h-48",
-  // 用量区最多三行 + 一个入口行；限高与 agent 同档，超出只滚动这一区。
+  // 用量区最多四行（速度 / 首字延迟 / 会话合计 / 子代理合计）；限高与 agent 同档，超出只滚动这一区。
   usage: "max-h-48",
 } as const satisfies Record<StatusSectionKind, string | null>;
 
@@ -1061,14 +1059,10 @@ function UsageMetricRow({ label, value }: { label: string; value: string }) {
  */
 function UsageStatusSection({
   detail,
-  onOpenUsage,
-  parentSessionId,
   separated,
   unsupported,
 }: {
   detail: V4ConversationUsageDetailResult | null;
-  onOpenUsage?: (request: OpenUsageSideTabRequest) => void;
-  parentSessionId?: string;
   separated: boolean;
   unsupported: boolean;
 }) {
@@ -1077,11 +1071,10 @@ function UsageStatusSection({
   const generation = detail?.latestTimedGeneration ?? null;
   const tpsValue = formatGenerationTps(locale, resolveGenerationTps(generation));
   const firstTokenValue = formatFirstTokenLatency(locale, generation?.timeToFirstTokenMs ?? null);
-  const canOpenDetail = Boolean(onOpenUsage && parentSessionId);
 
   // contextual 读数（上下文容量、缓存命中率）不在这里展示：输入框下方的容量计已经承担，
   // 重复一遍只会制造两个可能不一致的数字。本区只放对话级、只能从库里算出来的量。
-  if (!detail && !canOpenDetail) return null;
+  if (!detail) return null;
 
   return (
     <StatusSection
@@ -1120,20 +1113,6 @@ function UsageStatusSection({
           label={intl.formatMessage({ id: "chat.statusPanel.usageUnavailable" })}
           value="--"
         />
-      ) : null}
-      {canOpenDetail ? (
-        <button
-          type="button"
-          data-usage-open="true"
-          onClick={() => onOpenUsage?.({ parentSessionId: parentSessionId as string })}
-          className="flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-ui-base text-[var(--color-foreground-subtle)] hover:bg-[var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-input-border-focused)]"
-        >
-          <GaugeIcon className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">
-            {intl.formatMessage({ id: "chat.statusPanel.openUsage" })}
-          </span>
-          <ChevronRightIcon className="size-3.5 shrink-0" />
-        </button>
       ) : null}
     </StatusSection>
   );
@@ -1862,7 +1841,6 @@ function ConversationStatusPanelImpl({
   remoteSessionId,
   usageContextWindow,
   usageRefreshKey,
-  onOpenUsage,
   rootSessionId,
   parentSessionId,
   isMobileViewport = false,
@@ -2228,8 +2206,6 @@ function ConversationStatusPanelImpl({
                   canRenderWorkflows ||
                   canRenderAgents
                 }
-                parentSessionId={parentSessionId}
-                {...(onOpenUsage ? { onOpenUsage } : {})}
               />
             ) : null}
           </div>

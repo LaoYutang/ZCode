@@ -80,34 +80,59 @@ function resolveUsageStartDayIndex(
   return Math.min(...dayIndexes);
 }
 
+/**
+ * 缓存命中率。用量库的 inputTokens 已是 total input，cache 字段只是 breakdown：
+ * 命中率分母不能再加 cacheRead/cacheCreation，否则会把命中率压低。
+ * 区间汇总与当日分块共用这一份实现，两处不允许各算一套。
+ */
+function resolveCacheHitRate(input: {
+  inputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+}): number {
+  const denominator =
+    input.inputTokens > 0 ? input.inputTokens : input.cacheCreationTokens + input.cacheReadTokens;
+  return denominator > 0 ? input.cacheReadTokens / denominator : 0;
+}
+
 export function buildAppUsageSnapshot(
   result: AppUsageQueryResult,
   opts: BuildAppUsageOptions,
 ): AppUsageSnapshot {
   const { totals, turnTotals, toolTotals } = result;
 
-  // 用量库的 inputTokens 已是 total input，cache 字段只是 breakdown。
-  // 命中率分母不能再加 cacheRead/cacheCreation，否则会把命中率压低。
-  const cacheDenom =
-    totals.inputTokens > 0
-      ? totals.inputTokens
-      : totals.cacheCreationTokens + totals.cacheReadTokens;
-  const cacheHitRate = cacheDenom > 0 ? totals.cacheReadTokens / cacheDenom : 0;
+  const cacheHitRate = resolveCacheHitRate(totals);
   const modelErrorRate =
     totals.modelRequestCount > 0 ? totals.modelErrorCount / totals.modelRequestCount : 0;
   const toolErrorRate =
     toolTotals.toolCallCount > 0 ? toolTotals.toolErrorCount / toolTotals.toolCallCount : 0;
 
-  // 按日 token 映射，用于 activeDays / streak / heatmap
+  // 按日 token 映射，用于 activeDays / streak / heatmap / today
   const dayTokenMap = new Map<
     number,
-    { totalTokens: number; turnCount: number; toolCallCount: number }
+    {
+      totalTokens: number;
+      turnCount: number;
+      toolCallCount: number;
+      inputTokens: number;
+      outputTokens: number;
+      reasoningTokens: number;
+      cacheCreationTokens: number;
+      cacheReadTokens: number;
+      modelRequestCount: number;
+    }
   >();
   for (const d of result.days) {
     dayTokenMap.set(d.dayIndex, {
       totalTokens: d.totalTokens,
       turnCount: d.turnCount,
       toolCallCount: d.toolCallCount,
+      inputTokens: d.inputTokens,
+      outputTokens: d.outputTokens,
+      reasoningTokens: d.reasoningTokens,
+      cacheCreationTokens: d.cacheCreationTokens,
+      cacheReadTokens: d.cacheReadTokens,
+      modelRequestCount: d.modelRequestCount,
     });
   }
 
@@ -206,11 +231,33 @@ export function buildAppUsageSnapshot(
     avgDurationMs: t.avgDurationMs,
   }));
 
+  // 今日：直接取按日聚合里 endDayIndex 那一行，不另开查询。今天没有任何 model_usage
+  // 行时该 dayIndex 不存在，此时全部为 0——这是正确结果，不是缺数据。
+  const todayRow = dayTokenMap.get(endDayIndex);
+  const today: AppUsageSnapshot["today"] = {
+    date: dayIndexToDate(endDayIndex),
+    totalTokens: todayRow?.totalTokens ?? 0,
+    inputTokens: todayRow?.inputTokens ?? 0,
+    outputTokens: todayRow?.outputTokens ?? 0,
+    reasoningTokens: todayRow?.reasoningTokens ?? 0,
+    cacheCreationTokens: todayRow?.cacheCreationTokens ?? 0,
+    cacheReadTokens: todayRow?.cacheReadTokens ?? 0,
+    cacheHitRate: resolveCacheHitRate({
+      inputTokens: todayRow?.inputTokens ?? 0,
+      cacheCreationTokens: todayRow?.cacheCreationTokens ?? 0,
+      cacheReadTokens: todayRow?.cacheReadTokens ?? 0,
+    }),
+    modelRequestCount: todayRow?.modelRequestCount ?? 0,
+    turnCount: todayRow?.turnCount ?? 0,
+    toolCallCount: todayRow?.toolCallCount ?? 0,
+  };
+
   return {
     range: opts.range,
     generatedAt: opts.generatedAt,
     timeZone: opts.timeZone,
     source: "agent-db",
+    today,
     summary: {
       totalTokens: totals.totalTokens,
       inputTokens: totals.inputTokens,

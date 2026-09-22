@@ -227,8 +227,9 @@ export interface ZCodeAgentAppUsageParams {
 export interface ZCodeAgentTaskTokenUsageParams extends ZCodeAgentSessionTarget {}
 
 /**
- * 会话用量明细：计费口径（与 app 级用量同源），可选限制逐请求明细条数。
- * 与 `ZCodeAgentTaskTokenUsageParams` 的增量口径是两套数字，不要混用。
+ * 会话用量明细：计费口径（只算 completed 请求），可选限制逐请求明细条数。
+ * 与 `ZCodeAgentTaskTokenUsageParams` 的增量口径是两套数字，不要混用；
+ * 与 app 级 `usage/stats`（不按 status 过滤）窗口不同，也不可互相校验。
  */
 export interface ZCodeAgentSessionUsageDetailParams extends ZCodeAgentSessionTarget {
   recentRequestLimit?: number;

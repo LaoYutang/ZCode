@@ -309,7 +309,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleSyncSubagentSessionTabs,
   handleOpenSelectionSideChat,
   handleOpenPlanDetail,
-  handleOpenUsage,
   handleOpenWorkflowRun,
   handleOpenWorkflowRunDirectory,
   handleOpenWorkflowActorSession,
@@ -1867,7 +1866,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
                               onOpenSelectionSideChat={handleOpenSelectionSideChat}
                               onOpenPlanDetail={handleOpenPlanDetail}
-                              onOpenUsage={handleOpenUsage}
                               onOpenWorkflowRun={handleOpenWorkflowRun}
                               onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
                               onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}

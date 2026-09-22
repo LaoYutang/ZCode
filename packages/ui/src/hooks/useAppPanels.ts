@@ -27,7 +27,6 @@ import {
   openSubagentDirectorySidePane,
   openSelectionSideChatPane,
   openPlanDetailSidePane,
-  openUsageSidePane,
   openWorkflowRunSidePane,
   replaceWorkflowRunSidePane,
   openWorkflowRunDirectorySidePane,
@@ -66,7 +65,6 @@ import {
   type OpenScopedSubagentDirectorySideTabRequest,
   type OpenSelectionSideChatRequest,
   type OpenScopedPlanDetailSideTabRequest,
-  type OpenScopedUsageSideTabRequest,
   type OpenScopedWorkflowRunSideTabRequest,
   type OpenScopedWorkflowRunDirectorySideTabRequest,
   type OpenScopedWorkflowActorSessionSideTabRequest,
@@ -940,24 +938,6 @@ export function useAppPanels(options: {
     [commitOpenedSidePaneState, revealSidePaneForCurrentOwner],
   );
 
-  const handleOpenUsage = useCallback(
-    (request: OpenScopedUsageSideTabRequest) => {
-      const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
-      revealSidePaneForCurrentOwner();
-      commitOpenedSidePaneState((current) =>
-        openUsageSidePane(current, {
-          ...request,
-          workspaceKey,
-        }),
-      );
-      logger.debug("[App] 打开会话用量右侧 tab", {
-        parentSessionId: request.parentSessionId,
-        workspaceKey,
-      });
-    },
-    [commitOpenedSidePaneState, revealSidePaneForCurrentOwner],
-  );
-
   const handleOpenWorkflowRun = useCallback(
     (request: OpenScopedWorkflowRunSideTabRequest) => {
       const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
@@ -1615,7 +1595,6 @@ export function useAppPanels(options: {
     handleSyncSubagentSessionTabs,
     handleOpenSelectionSideChat,
     handleOpenPlanDetail,
-    handleOpenUsage,
     handleOpenWorkflowRun,
     handleOpenWorkflowRunDirectory,
     handleOpenWorkflowActorSession,

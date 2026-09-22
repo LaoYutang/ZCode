@@ -1030,6 +1030,12 @@ export interface AppUsageToolRow {
 export interface AppUsageDayRow {
   dayIndex: number;
   totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  modelRequestCount: number;
   turnCount: number;
   toolCallCount: number;
 }

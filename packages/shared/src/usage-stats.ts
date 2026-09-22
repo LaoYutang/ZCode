@@ -87,12 +87,37 @@ export const appUsageToolUsageSchema = z.object({
   avgDurationMs: z.number().nullable(),
 });
 
+/**
+ * 当日（调用方本地日）用量。
+ *
+ * 与 `summary` 是**两个不同窗口**的同一套口径：summary 覆盖请求的 range，today 只覆盖
+ * 「本地日起点 → now」。今日必须由按日聚合直接给出，不允许前端用 heatmap 最后一格或其他
+ * 区间数字凑——同一屏出现两个"今日"比不显示更糟。
+ *
+ * `date` 是 `yyyy-MM-dd` 的本地日期，供 UI 显示是哪一天。
+ */
+export const appUsageTodaySchema = z.object({
+  date: z.string(),
+  totalTokens: z.number(),
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+  reasoningTokens: z.number(),
+  cacheCreationTokens: z.number(),
+  cacheReadTokens: z.number(),
+  cacheHitRate: z.number(),
+  modelRequestCount: z.number(),
+  turnCount: z.number(),
+  toolCallCount: z.number(),
+});
+
 export const appUsageSnapshotSchema = z.object({
   range: z.enum(APP_USAGE_RANGES),
   generatedAt: z.number(),
   timeZone: z.string(),
   source: z.literal("agent-db"),
   summary: appUsageSummarySchema,
+  // 可选：旧版本 CLI 不返回该分块。渲染端必须降级显示"--"，不得拿区间数字顶替。
+  today: appUsageTodaySchema.optional(),
   heatmap: appUsageHeatmapSchema,
   dailyModelUsage: z.array(appUsageDailyModelUsageSchema),
   models: z.array(appUsageModelUsageSchema),
@@ -107,6 +132,7 @@ export type AppUsageDailyModelItem = z.infer<typeof appUsageDailyModelItemSchema
 export type AppUsageDailyModelUsage = z.infer<typeof appUsageDailyModelUsageSchema>;
 export type AppUsageModelUsage = z.infer<typeof appUsageModelUsageSchema>;
 export type AppUsageToolUsage = z.infer<typeof appUsageToolUsageSchema>;
+export type AppUsageToday = z.infer<typeof appUsageTodaySchema>;
 export type AppUsageFavoriteModel = z.infer<typeof appUsageFavoriteModelSchema>;
 export type AppUsageSnapshot = z.infer<typeof appUsageSnapshotSchema>;
 

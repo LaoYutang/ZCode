@@ -482,16 +482,26 @@ export async function queryAppUsage(
     )
     .all(since, until) as unknown as AppUsageToolRow[];
 
+  // 按本地日聚合：这里一次算齐当日的 token 拆分与请求数，供 usage-stats-builder 从中
+  // 取出 `today` 分块。不要为"今日"另开一条 SQL——同一个 dayIndex 出现两套口径就会分叉。
   const days = db
     .prepare(
       `select
          cast((started_at + ?) / ? as integer) as dayIndex,
-         coalesce(sum(computed_total_tokens), 0) as totalTokens
+         coalesce(sum(computed_total_tokens), 0) as totalTokens,
+         coalesce(sum(input_tokens), 0) as inputTokens,
+         coalesce(sum(output_tokens), 0) as outputTokens,
+         coalesce(sum(reasoning_tokens), 0) as reasoningTokens,
+         coalesce(sum(cache_creation_input_tokens), 0) as cacheCreationTokens,
+         coalesce(sum(cache_read_input_tokens), 0) as cacheReadTokens,
+         count(*) as modelRequestCount
        from model_usage
        where started_at >= ? and started_at <= ?
        group by dayIndex`,
     )
-    .all(tzOffsetMs, DAY_MS, since, until) as Array<{ dayIndex: number; totalTokens: number }>;
+    .all(tzOffsetMs, DAY_MS, since, until) as Array<
+    Omit<AppUsageDayRow, "turnCount" | "toolCallCount">
+  >;
 
   const turnDays = db
     .prepare(
@@ -515,29 +525,37 @@ export async function queryAppUsage(
   const dayMap = new Map<number, AppUsageDayRow>();
   for (const row of days) {
     dayMap.set(row.dayIndex, {
-      dayIndex: row.dayIndex,
+      dayIndex: Number(row.dayIndex),
       totalTokens: Number(row.totalTokens),
+      inputTokens: Number(row.inputTokens),
+      outputTokens: Number(row.outputTokens),
+      reasoningTokens: Number(row.reasoningTokens),
+      cacheCreationTokens: Number(row.cacheCreationTokens),
+      cacheReadTokens: Number(row.cacheReadTokens),
+      modelRequestCount: Number(row.modelRequestCount),
       turnCount: 0,
       toolCallCount: 0,
     });
   }
+  const emptyDay = (dayIndex: number): AppUsageDayRow => ({
+    dayIndex,
+    totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    modelRequestCount: 0,
+    turnCount: 0,
+    toolCallCount: 0,
+  });
   for (const row of turnDays) {
-    const existing = dayMap.get(row.dayIndex) ?? {
-      dayIndex: row.dayIndex,
-      totalTokens: 0,
-      turnCount: 0,
-      toolCallCount: 0,
-    };
+    const existing = dayMap.get(row.dayIndex) ?? emptyDay(row.dayIndex);
     existing.turnCount = Number(row.turnCount);
     dayMap.set(row.dayIndex, existing);
   }
   for (const row of toolDays) {
-    const existing = dayMap.get(row.dayIndex) ?? {
-      dayIndex: row.dayIndex,
-      totalTokens: 0,
-      turnCount: 0,
-      toolCallCount: 0,
-    };
+    const existing = dayMap.get(row.dayIndex) ?? emptyDay(row.dayIndex);
     existing.toolCallCount = Number(row.toolCallCount);
     dayMap.set(row.dayIndex, existing);
   }
@@ -690,9 +708,13 @@ export async function queryTaskUsage(
  * 会话用量明细（状态条/用量面板的数据源）。
  *
  * 与 `queryTaskUsage` 的区别是口径而非形状：这里一律是**计费口径**
- * （`sum(computed_total_tokens)` 原始求和，与 `queryAppUsage` 同源），而 `queryTaskUsage`
+ * （`sum(computed_total_tokens)` 原始求和），而 `queryTaskUsage`
  * 是"前缀只计一次"的增量口径。两种口径能差数倍（长会话里共享前缀只算一次 vs 每次请求
  * 都计一整份 input），所以展示值只允许取这里的 `billed`，不要在 UI 层混用。
+ *
+ * 与 `queryAppUsage`（设置 → 用量）**不是同一口径**：后者只按时间窗过滤、不按 status
+ * 过滤，而这里只算 completed。两者的 `computed_total_tokens` 求和形状相同，但窗口不同，
+ * 数字不可互相校验，也不要试图把任一侧"对齐"到另一边（会改动用户已看到的数）。
  *
  * 只统计 `status='completed'`：实测库中 token 全部落在 completed 行（cancelled/running 都为 0），
  * 排除非 completed 同时挡掉在途请求，避免同一条请求在完成前后被计两次。
