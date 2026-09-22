@@ -312,7 +312,11 @@ export class NodeReplSession {
       throw new TypeError("nodeRepl.emitStructuredResult requires a content array");
     }
     for (const block of candidate.content) {
-      if (!block || typeof block !== "object" || typeof (block as { type?: unknown }).type !== "string") {
+      if (
+        !block ||
+        typeof block !== "object" ||
+        typeof (block as { type?: unknown }).type !== "string"
+      ) {
         throw new TypeError("nodeRepl.emitStructuredResult content blocks require a type");
       }
     }

@@ -79,7 +79,11 @@ export interface TraceSpan {
 }
 
 export type ContextSectionSource = "system_prompt" | "skills" | "tools" | "other";
-export type TokenMethod = "estimated" | "provider_count" | "proportional_estimate" | "provider_usage";
+export type TokenMethod =
+  | "estimated"
+  | "provider_count"
+  | "proportional_estimate"
+  | "provider_usage";
 export type TokenConfidence = "high" | "medium" | "low";
 
 export interface TokenMeasurement {

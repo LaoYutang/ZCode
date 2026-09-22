@@ -32,10 +32,7 @@ test("识别实测到的三类「解析不出最新发布」错误码", () => {
 
 test("识别无 code 的 'No published versions on GitHub'", () => {
   // feed 里没有 entry 时 electron-updater 抛的是普通 Error，没有 code。
-  assert.equal(
-    isUnresolvedReleaseError(new Error("No published versions on GitHub")),
-    true,
-  );
+  assert.equal(isUnresolvedReleaseError(new Error("No published versions on GitHub")), true);
   assert.equal(
     isUnresolvedReleaseError(
       makeError("Unable to find latest version on GitHub (https://...)", undefined),
@@ -60,7 +57,7 @@ test("真实报错原文被压成单行并截断", () => {
     "Cannot parse releases feed: Error: Unable to find latest version on GitHub (https://github.com/o/r/releases/latest), please ensure a production release exists: HttpError: 406",
     '"method: GET url: https://github.com/o/r/releases\\n\\n Data:\\n \\n "',
     "Headers: {",
-    '"content-security-policy": "default-src \'none\'; base-uri \'self\'; ...",',
+    "\"content-security-policy\": \"default-src 'none'; base-uri 'self'; ...\",",
     "}",
     "XML:",
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -79,15 +76,14 @@ test("真实报错原文被压成单行并截断", () => {
 
 test("短消息不被截断也不加省略号", () => {
   assert.equal(toSingleLineErrorMessage("网络不可达"), "网络不可达");
-  assert.equal(
-    toSingleLineErrorMessage("  a\n\tb  "),
-    "a b",
-    "内部空白应折叠成单空格",
-  );
+  assert.equal(toSingleLineErrorMessage("  a\n\tb  "), "a b", "内部空白应折叠成单空格");
 });
 
 test("getErrorCode 只返回字符串类型的 code", () => {
-  assert.equal(getErrorCode(makeError("x", "ERR_UPDATER_INVALID_RELEASE_FEED")), "ERR_UPDATER_INVALID_RELEASE_FEED");
+  assert.equal(
+    getErrorCode(makeError("x", "ERR_UPDATER_INVALID_RELEASE_FEED")),
+    "ERR_UPDATER_INVALID_RELEASE_FEED",
+  );
   assert.equal(getErrorCode(makeError("x")), undefined);
   assert.equal(getErrorCode({ code: 42 }), undefined);
   assert.equal(getErrorCode(null), undefined);

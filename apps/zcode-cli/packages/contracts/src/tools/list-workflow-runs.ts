@@ -43,7 +43,7 @@ export const ListWorkflowRunsInputSchema = z
       .array(z.enum(WORKFLOW_RUN_LIFECYCLE_STATUSES))
       .optional()
       .describe(
-        "Optional status filter. Omit to see every run in this project. Pass [\"running\", \"pending\"] to see only what is still in flight.",
+        'Optional status filter. Omit to see every run in this project. Pass ["running", "pending"] to see only what is still in flight.',
       ),
   })
   // 刻意没有 cwd 输入：工具恒查当前会话的工作目录（模型无权跨项目扫库，这同时是

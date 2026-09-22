@@ -78,8 +78,6 @@ function nonNegativeCount(value: number | undefined): number {
   return Math.floor(value);
 }
 
-function compactStats(
-  stats: Array<ModifiedFileStat | undefined>,
-): ModifiedFileStat[] {
+function compactStats(stats: Array<ModifiedFileStat | undefined>): ModifiedFileStat[] {
   return stats.filter((stat): stat is ModifiedFileStat => stat !== undefined);
 }

@@ -1,8 +1,5 @@
 import type { TuiSubmitPromptResult } from "@zcode/tui";
-import {
-  formatAvailableCommandCenterModes,
-  isSwitchableCommandCenterMode,
-} from "../modes.js";
+import { formatAvailableCommandCenterModes, isSwitchableCommandCenterMode } from "../modes.js";
 import type { CommandCenterDeps } from "../types.js";
 
 export async function handleModeCommand(

@@ -1,6 +1,13 @@
 import { UNPHASED_ID } from "./constants.js";
 import type { OrderTrace } from "./causality-order.js";
-import { FLOW_ABORT, FLOW_ENTRY, FLOW_SINK, type FlowEdge, type FlowNode, type FlowPhase } from "./flow-graph.js";
+import {
+  FLOW_ABORT,
+  FLOW_ENTRY,
+  FLOW_SINK,
+  type FlowEdge,
+  type FlowNode,
+  type FlowPhase,
+} from "./flow-graph.js";
 
 /**
  * The phase quotient of the control-flow graph — the control-flow counterpart of

@@ -5,8 +5,6 @@ interface ProcessTitleTarget {
   title: string;
 }
 
-export const setCliProcessTitle = (
-  target: ProcessTitleTarget = process,
-): void => {
+export const setCliProcessTitle = (target: ProcessTitleTarget = process): void => {
   target.title = CLI_PROCESS_NAME;
 };

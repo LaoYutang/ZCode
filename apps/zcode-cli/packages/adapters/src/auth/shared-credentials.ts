@@ -6,10 +6,7 @@ import { atomicWritePrivateTextFile, backupCorruptFile, withFileLock } from "@zc
 import { createZCodeCredentialCipher, type ZCodeCredentialCipher } from "./credential-cipher.js";
 
 const ZCODE_DATA_BASE_DIR_ENV_KEY = "ZCODE_DATA_BASE_DIR";
-const credentialChangeListeners = new Map<
-  string,
-  Set<() => void | Promise<void>>
->();
+const credentialChangeListeners = new Map<string, Set<() => void | Promise<void>>>();
 
 export interface SharedZCodeCredentialStoreOptions {
   baseDir?: string;

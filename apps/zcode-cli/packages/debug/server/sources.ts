@@ -176,10 +176,13 @@ function toEventRecord(record: JsonRecord): EventRecord | null {
   if (!type) return null;
 
   return {
-    id: stringValue(value.id) ?? stringValue(value.eventId) ?? `${record.sourcePath}:${record.line}`,
+    id:
+      stringValue(value.id) ?? stringValue(value.eventId) ?? `${record.sourcePath}:${record.line}`,
     type,
     timestamp:
-      stringValue(value.timestamp) ?? stringValue(value.occurredAt) ?? stringValue(value.recordedAt),
+      stringValue(value.timestamp) ??
+      stringValue(value.occurredAt) ??
+      stringValue(value.recordedAt),
     traceId: stringValue(value.traceId),
     sessionId: stringValue(value.sessionId),
     turnId: stringValue(value.turnId),

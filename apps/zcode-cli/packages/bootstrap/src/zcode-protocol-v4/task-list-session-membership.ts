@@ -13,12 +13,8 @@ export const TASK_LIST_SESSION_TYPES = [
   "workflow_parent",
 ] as const satisfies readonly SessionTaskType[];
 
-const TASK_LIST_SESSION_TYPE_SET = new Set<SessionTaskType>(
-  TASK_LIST_SESSION_TYPES,
-);
+const TASK_LIST_SESSION_TYPE_SET = new Set<SessionTaskType>(TASK_LIST_SESSION_TYPES);
 
-export function isTaskListSessionType(
-  taskType: SessionTaskType | undefined,
-): boolean {
+export function isTaskListSessionType(taskType: SessionTaskType | undefined): boolean {
   return TASK_LIST_SESSION_TYPE_SET.has(taskType ?? "interactive");
 }

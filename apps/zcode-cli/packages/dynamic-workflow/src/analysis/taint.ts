@@ -1,3 +1,4 @@
+/* oxlint-disable eslint(max-lines) -- oxfmt 规范化展开长表达式后代码行数为 414（上限 400）；此前未超限，纯格式化所致、语义未变，若后续拆分污点分析请一并删除本豁免。 */
 import ts from "typescript";
 import type { WorkflowProgram } from "../compiler/compile.js";
 import type { SiteTable } from "./sites.js";
@@ -19,7 +20,12 @@ import {
   type AbstractValue,
 } from "./domain.js";
 import { applyCall, evalCall } from "./calls.js";
-import { applyConstructor, applyMixinConstructor, evalAwait, handleNewUnknown } from "./promise-ops.js";
+import {
+  applyConstructor,
+  applyMixinConstructor,
+  evalAwait,
+  handleNewUnknown,
+} from "./promise-ops.js";
 import {
   classConstructor,
   classNodeOfSymbol,
@@ -185,7 +191,9 @@ export class Evaluator {
     } else if (ts.isExpressionStatement(node)) {
       this.evalExpr(node.expression, ctx);
     } else if (ts.isReturnStatement(node)) {
-      ctx.onReturn(node.expression === undefined ? emptyValue() : this.evalExpr(node.expression, ctx));
+      ctx.onReturn(
+        node.expression === undefined ? emptyValue() : this.evalExpr(node.expression, ctx),
+      );
     } else if (ts.isForOfStatement(node)) {
       handleForOf(this, node, ctx);
     } else if (ts.isIfStatement(node)) {
@@ -265,7 +273,7 @@ export class Evaluator {
     }
     // Destructuring off a live place aliases each extracted element to a live field. When the
     // place is present, still evaluate the initializer for effect (a join's edges, an awaited
-    // thenable's `then`) — the alias binds to the place, not the discarded snapshot. 
+    // thenable's `then`) — the alias binds to the place, not the discarded snapshot.
     // `const [sec, alias] = await Promise.all([secret, box])` needs both the join edges AND
     // the element aliasing (alias IS box) so a write through `alias` reaches box.
     if (place !== undefined) {
@@ -389,7 +397,11 @@ export class Evaluator {
     return undefined;
   }
 
-  private placeField(container: AbstractValue, key: string, create: boolean): AbstractValue | undefined {
+  private placeField(
+    container: AbstractValue,
+    key: string,
+    create: boolean,
+  ): AbstractValue | undefined {
     const field = container.fields.get(key);
     if (field !== undefined) return field;
     return create ? liveField(container, key) : undefined;
@@ -413,14 +425,21 @@ export class Evaluator {
     const place = this.resolvePlace(arg);
     if (place !== undefined) return place;
     const peeled = peelPlace(arg);
-    return ts.isObjectLiteralExpression(peeled) || ts.isArrayLiteralExpression(peeled) ? value : undefined;
+    return ts.isObjectLiteralExpression(peeled) || ts.isArrayLiteralExpression(peeled)
+      ? value
+      : undefined;
   }
 
   /**
    * Bind a destructuring pattern (or a single name). See {@link bindPattern} in patterns.ts;
    * exposed as a thin method because the aliasing-bind machinery is used across modules.
    */
-  bindPattern(name: ts.BindingName, value: AbstractValue, ctx: EvalContext, sourcePlace?: AbstractValue): void {
+  bindPattern(
+    name: ts.BindingName,
+    value: AbstractValue,
+    ctx: EvalContext,
+    sourcePlace?: AbstractValue,
+  ): void {
     bindPattern(this, name, value, ctx, sourcePlace);
   }
 
@@ -491,7 +510,8 @@ export class Evaluator {
       // taint, for both String.raw and user-defined tags.
       const argVals: AbstractValue[] = [emptyValue()]; // the frozen strings array (untainted)
       if (ts.isTemplateExpression(node.template)) {
-        for (const span of node.template.templateSpans) argVals.push(this.evalExpr(span.expression, ctx));
+        for (const span of node.template.templateSpans)
+          argVals.push(this.evalExpr(span.expression, ctx));
       }
       return applyCall(this, node.tag, argVals, ctx, undefined, undefined, node);
     }
@@ -529,8 +549,10 @@ export class Evaluator {
     // fresh per-pass evaluation is merged into the persistent place and the place is what
     // flows on — so a write through it (parameter write-back, a later field assignment through
     // an alias) lands on storage that survives the pass.
-    if (ts.isArrayLiteralExpression(node)) return this.s.literalPlaceOf(node, evalArrayLiteral(this, node, ctx));
-    if (ts.isObjectLiteralExpression(node)) return this.s.literalPlaceOf(node, evalObjectLiteral(this, node, ctx));
+    if (ts.isArrayLiteralExpression(node))
+      return this.s.literalPlaceOf(node, evalArrayLiteral(this, node, ctx));
+    if (ts.isObjectLiteralExpression(node))
+      return this.s.literalPlaceOf(node, evalObjectLiteral(this, node, ctx));
     if (ts.isNewExpression(node)) {
       // `new C(args)` on a script-local class applies the constructor (placeholder actuals
       // + param write-back) and returns a REFERENCE to the class's shared abstract
@@ -543,7 +565,9 @@ export class Evaluator {
         const args = node.arguments ?? [];
         const argVals = args.map((arg) => this.evalExpr(arg, ctx));
         if (ctorId !== undefined) {
-          const argPlaces = args.map((arg, i) => this.argWriteBackPlace(arg, argVals[i] as AbstractValue));
+          const argPlaces = args.map((arg, i) =>
+            this.argWriteBackPlace(arg, argVals[i] as AbstractValue),
+          );
           applyConstructor(this, ctorId, ctx, argVals, argPlaces, node);
         } else if (hasUnresolvedHeritage(this, cls)) {
           // No resolvable constructor because the base is a mixin CALL (`class D extends
@@ -627,7 +651,10 @@ export class Evaluator {
     }
     // Value-producing operators (concat, arithmetic, comparison): union of operand
     // taints, fields dropped — the result is a primitive.
-    return unionValues(collapse(this.evalExpr(node.left, ctx)), collapse(this.evalExpr(node.right, ctx)));
+    return unionValues(
+      collapse(this.evalExpr(node.left, ctx)),
+      collapse(this.evalExpr(node.right, ctx)),
+    );
   }
 
   private evalPropertyAccess(node: ts.PropertyAccessExpression, ctx: EvalContext): AbstractValue {

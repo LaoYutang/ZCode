@@ -191,9 +191,7 @@ export class AiSdkModelAdapter {
               },
             }
           : {}),
-        ...(refreshRuntimeHeadersBeforeAttempt
-          ? { refreshRuntimeHeadersBeforeAttempt }
-          : {}),
+        ...(refreshRuntimeHeadersBeforeAttempt ? { refreshRuntimeHeadersBeforeAttempt } : {}),
       };
     };
     const resolveForRequest = (

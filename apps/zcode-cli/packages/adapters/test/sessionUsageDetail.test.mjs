@@ -68,14 +68,32 @@ function insertToolUsage(db, row) {
   db.prepare(
     `insert into tool_usage (id, session_id, tool_call_id, tool_name, status, started_at, duration_ms)
      values (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(row.id, row.sessionId, row.id, row.toolName, row.status, row.startedAt, row.durationMs ?? null);
+  ).run(
+    row.id,
+    row.sessionId,
+    row.id,
+    row.toolName,
+    row.status,
+    row.startedAt,
+    row.durationMs ?? null,
+  );
 }
 
 function seedDb() {
   const db = createDb();
   insertSession(db, { id: PARENT });
-  insertSession(db, { id: SUBAGENT, parentId: PARENT, taskType: "subagent_child", title: "调研任务" });
-  insertSession(db, { id: SIDE_CHAT, parentId: PARENT, taskType: "selection_side_chat", title: "侧边问答" });
+  insertSession(db, {
+    id: SUBAGENT,
+    parentId: PARENT,
+    taskType: "subagent_child",
+    title: "调研任务",
+  });
+  insertSession(db, {
+    id: SIDE_CHAT,
+    parentId: PARENT,
+    taskType: "selection_side_chat",
+    title: "侧边问答",
+  });
 
   // 两个模型、三条完成请求。
   insertModelUsage(db, {
@@ -160,11 +178,38 @@ function seedDb() {
     computedTotalTokens: 629057,
   });
 
-  insertToolUsage(db, { id: "t1", sessionId: PARENT, toolName: "read", status: "completed", startedAt: 1200, durationMs: 10 });
-  insertToolUsage(db, { id: "t2", sessionId: PARENT, toolName: "read", status: "completed", startedAt: 2200, durationMs: 30 });
-  insertToolUsage(db, { id: "t3", sessionId: PARENT, toolName: "bash", status: "error", startedAt: 3200, durationMs: 20 });
+  insertToolUsage(db, {
+    id: "t1",
+    sessionId: PARENT,
+    toolName: "read",
+    status: "completed",
+    startedAt: 1200,
+    durationMs: 10,
+  });
+  insertToolUsage(db, {
+    id: "t2",
+    sessionId: PARENT,
+    toolName: "read",
+    status: "completed",
+    startedAt: 2200,
+    durationMs: 30,
+  });
+  insertToolUsage(db, {
+    id: "t3",
+    sessionId: PARENT,
+    toolName: "bash",
+    status: "error",
+    startedAt: 3200,
+    durationMs: 20,
+  });
   // 与 queryAppUsage 的 tools 分块同语义：不按 status 过滤，running 也计入调用次数。
-  insertToolUsage(db, { id: "t4", sessionId: PARENT, toolName: "read", status: "running", startedAt: 4200 });
+  insertToolUsage(db, {
+    id: "t4",
+    sessionId: PARENT,
+    toolName: "read",
+    status: "running",
+    startedAt: 4200,
+  });
   return db;
 }
 

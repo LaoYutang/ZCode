@@ -19,11 +19,7 @@ export const resolveSeaRuntimeToolPreparationPlan = ({ root, target }) => {
   };
 };
 
-export const prepareSeaRuntimeToolAssets = async ({
-  root,
-  target,
-  prebuiltPlan,
-}) => {
+export const prepareSeaRuntimeToolAssets = async ({ root, target, prebuiltPlan }) => {
   const plan = resolveSeaRuntimeToolPreparationPlan({ root, target });
 
   if (plan.enabled) {

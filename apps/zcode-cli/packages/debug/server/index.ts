@@ -110,7 +110,7 @@ export function startDebugServer(options: DebugServerOptions = {}) {
   const networkCapture =
     options.networkCapture === false
       ? undefined
-      : options.networkCapture ?? createNetworkCaptureServiceFromEnv();
+      : (options.networkCapture ?? createNetworkCaptureServiceFromEnv());
   const app = createDebugApp({ ...options, networkCapture });
   const server = serve({
     fetch: app.fetch,

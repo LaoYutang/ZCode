@@ -11,8 +11,6 @@ export function formatAvailableCommandCenterModes(): string {
   return SWITCHABLE_COMMAND_CENTER_MODES.join(", ");
 }
 
-export function isSwitchableCommandCenterMode(
-  value: string,
-): value is SwitchableCommandCenterMode {
+export function isSwitchableCommandCenterMode(value: string): value is SwitchableCommandCenterMode {
   return SWITCHABLE_COMMAND_CENTER_MODES.includes(value as SwitchableCommandCenterMode);
 }

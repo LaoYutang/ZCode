@@ -43,7 +43,10 @@ function persistedTarget(
     (message) => String(message.info.id) === candidate.boundaryMessageId,
   );
   const anchor = boundary?.info.anchor;
-  if (!anchor || (!anchor.productTurnId && !anchor.orderedMessageIds && !anchor.boundaryMessageId)) {
+  if (
+    !anchor ||
+    (!anchor.productTurnId && !anchor.orderedMessageIds && !anchor.boundaryMessageId)
+  ) {
     return null;
   }
   if (
@@ -82,7 +85,11 @@ export async function resolveStableForkTargetFromTranscript(options: {
   if (persisted) {
     const goalBoundary =
       persisted.goalBoundary ??
-      (await legacyGoalBoundary(options.store, options.messages, persisted.target.boundaryMessageId));
+      (await legacyGoalBoundary(
+        options.store,
+        options.messages,
+        persisted.target.boundaryMessageId,
+      ));
     if (!goalBoundary) return { ok: false, reasonCode: "guard.forkTargetAmbiguous" };
     const boundary = options.messages.find(
       (message) => String(message.info.id) === persisted.target.boundaryMessageId,

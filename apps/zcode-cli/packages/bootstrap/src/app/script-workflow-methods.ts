@@ -22,10 +22,7 @@ type ScriptWorkflowBridgeDeps = Omit<ScriptWorkflowRuntimeDeps, "runtime"> & {
   getRuntime: () => ScriptWorkflowRuntimeDeps["runtime"];
 };
 
-type ScriptWorkflowRuntimeOptions = Pick<
-  SubmitPromptOptions,
-  "abortSignal" | "traceContext"
-> & {
+type ScriptWorkflowRuntimeOptions = Pick<SubmitPromptOptions, "abortSignal" | "traceContext"> & {
   onEvent?: (event: unknown) => void | Promise<void>;
 };
 

@@ -193,7 +193,7 @@ export function spawnHostProcess(
       failureKind?: "transient" | "permanent";
     }) => void;
     /** host 中 manual run 落库后请求 main 立即唤醒 scheduler。 */
-    onCronSchedulerWakeRequested?: (automationId: string) => void;    // browser-use：main 用 WebContentsView+CDP 执行一条命令。实现由宿主注入；缺省则 backend_unavailable。
+    onCronSchedulerWakeRequested?: (automationId: string) => void; // browser-use：main 用 WebContentsView+CDP 执行一条命令。实现由宿主注入；缺省则 backend_unavailable。
     handleBrowserExecuteRequest?: (params: {
       win: BrowserWindow;
       requestId: string;

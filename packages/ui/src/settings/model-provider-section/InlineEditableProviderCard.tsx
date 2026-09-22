@@ -819,7 +819,6 @@ export function InlineEditableProviderCard({
           onBaseUrlCompositionEnd={handleTechnicalInputCompositionEnd}
         />
 
-
         {isApiKeyProvider ? (
           <ProviderApiKeySection
             apiKeyValue={apiKeyValue}

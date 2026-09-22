@@ -35,15 +35,18 @@ export function useOnboardingTrigger(options: {
         setNeedsOnboarding(fallback());
       }
     }, 3000);
-    onboardingRecord.shouldOnboard().then(
-      (result) => {
-        if (!cancelled) setNeedsOnboarding(result);
-      },
-      (cause) => {
-        logger.warn("[occupation-onboarding] shouldOnboard 检查失败", { error: String(cause) });
-        if (!cancelled) setNeedsOnboarding(fallback());
-      },
-    ).finally(() => clearTimeout(timeout));
+    onboardingRecord
+      .shouldOnboard()
+      .then(
+        (result) => {
+          if (!cancelled) setNeedsOnboarding(result);
+        },
+        (cause) => {
+          logger.warn("[occupation-onboarding] shouldOnboard 检查失败", { error: String(cause) });
+          if (!cancelled) setNeedsOnboarding(fallback());
+        },
+      )
+      .finally(() => clearTimeout(timeout));
     return () => {
       cancelled = true;
       clearTimeout(timeout);

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { TID_MODEL_PROVIDER_ADD_PROVIDER_BUTTON } from "@zcode/shared";
-import type { ModelProviderNavGroup, ModelProviderNavItem } from "@/settings/model-provider-section/constants.js";
+import type {
+  ModelProviderNavGroup,
+  ModelProviderNavItem,
+} from "@/settings/model-provider-section/constants.js";
 import { ModelProviderSectionNavigation } from "@/settings/model-provider-section/Navigation.js";
 import { ProviderDetailFeedbackBoundary } from "@/settings/model-provider-section/ProviderDetailFeedback.js";
 import { SettingsResourceHeaderActions } from "@/settings/SettingsResourceHeaderActions.js";

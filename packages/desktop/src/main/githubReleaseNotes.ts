@@ -47,7 +47,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** 解析 `GET /repos/{owner}/{repo}/releases/latest` 的响应体。 */
 export function parseGitHubReleasePayload(
   payload: unknown,
-): Omit<GitHubReleaseDetails, "htmlUrl"> & { htmlUrl: string | null } | null {
+): (Omit<GitHubReleaseDetails, "htmlUrl"> & { htmlUrl: string | null }) | null {
   if (!isRecord(payload)) {
     return null;
   }

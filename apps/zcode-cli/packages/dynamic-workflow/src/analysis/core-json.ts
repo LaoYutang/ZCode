@@ -69,7 +69,9 @@ export function encodeAnalysisCore(core: AnalysisCore): AnalysisCoreJson {
 /** 从 JSON 形态重建 core（Map 保持原插入序）。未知版本抛普通 `Error`。 */
 export function decodeAnalysisCore(json: AnalysisCoreJson): AnalysisCore {
   if (json.version !== VERSION) {
-    throw new Error(`unsupported AnalysisCoreJson version ${String(json.version)} (expected ${VERSION})`);
+    throw new Error(
+      `unsupported AnalysisCoreJson version ${String(json.version)} (expected ${VERSION})`,
+    );
   }
   return {
     facts: {
@@ -84,7 +86,10 @@ export function decodeAnalysisCore(json: AnalysisCoreJson): AnalysisCore {
     trace: json.trace,
     types: {
       joinPortTypes: new Map(
-        json.types.joinPortTypes.map(([id, ports]) => [id, ports.map((port) => (port === null ? undefined : port))]),
+        json.types.joinPortTypes.map(([id, ports]) => [
+          id,
+          ports.map((port) => (port === null ? undefined : port)),
+        ]),
       ),
       siteType: new Map(json.types.siteType),
     },

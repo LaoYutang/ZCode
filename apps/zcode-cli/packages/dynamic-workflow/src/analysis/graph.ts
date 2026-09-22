@@ -99,9 +99,12 @@ export function projectSiteGraph(core: AnalysisCore): SiteGraph {
 
   // 1. Data edges into every sink.
   for (const [askId, occs] of facts.askData) for (const occ of occs) dataEdge(occ.site, askId, occ);
-  for (const [worldId, occs] of facts.worldReadData) for (const occ of occs) dataEdge(occ.site, worldId, occ);
-  for (const [joinId, occs] of facts.joinIn) for (const occ of occs) dataEdge(occ.site, joinId, occ, true);
-  for (const [fanoutId, occs] of facts.fanoutIn) for (const occ of occs) dataEdge(occ.site, fanoutId, occ);
+  for (const [worldId, occs] of facts.worldReadData)
+    for (const occ of occs) dataEdge(occ.site, worldId, occ);
+  for (const [joinId, occs] of facts.joinIn)
+    for (const occ of occs) dataEdge(occ.site, joinId, occ, true);
+  for (const [fanoutId, occs] of facts.fanoutIn)
+    for (const occ of occs) dataEdge(occ.site, fanoutId, occ);
   for (const occ of facts.returnData) dataEdge(occ.site, "sink", occ);
 
   // 2. Context edges: pairwise over asks whose actor sets intersect, earlier -> later.
@@ -115,7 +118,8 @@ export function projectSiteGraph(core: AnalysisCore): SiteGraph {
       const b = contextAsks[j];
       if (a === undefined || b === undefined) continue;
       if (!actorsIntersect(a.actors, b.actors)) continue;
-      const [from, to] = (askOrder.get(a.id) ?? 0) <= (askOrder.get(b.id) ?? 0) ? [a.id, b.id] : [b.id, a.id];
+      const [from, to] =
+        (askOrder.get(a.id) ?? 0) <= (askOrder.get(b.id) ?? 0) ? [a.id, b.id] : [b.id, a.id];
       edges.push({ exact: contextExact(a.actors, b.actors), from, kind: "context", to });
     }
   }
@@ -156,7 +160,11 @@ export function projectSiteGraph(core: AnalysisCore): SiteGraph {
   return { actors, edges: deduped, nodes };
 }
 
-function plainNode(site: CoreSimpleSite, kind: "world-read" | "join", types: CoreTypes): OrderedNode {
+function plainNode(
+  site: CoreSimpleSite,
+  kind: "world-read" | "join",
+  types: CoreTypes,
+): OrderedNode {
   const artifactType = types.siteType.get(site.id);
   return {
     id: site.id,

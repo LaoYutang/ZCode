@@ -1163,7 +1163,9 @@ export interface UsageStorePort {
   pruneUsage(input?: { beforeTime?: number }): Promise<void>;
   queryAppUsage(input: AppUsageQueryInput): Promise<AppUsageQueryResult>;
   queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult>;
-  querySessionUsageDetail(input: SessionUsageDetailQueryInput): Promise<SessionUsageDetailQueryResult>;
+  querySessionUsageDetail(
+    input: SessionUsageDetailQueryInput,
+  ): Promise<SessionUsageDetailQueryResult>;
 }
 
 export interface LocalSettingStorePort {

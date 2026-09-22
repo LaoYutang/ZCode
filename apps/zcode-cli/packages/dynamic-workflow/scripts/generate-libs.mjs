@@ -24,9 +24,7 @@ const REFERENCE_LIB = /\/\/\/\s*<reference\s+lib\s*=\s*["']([^"']+)["']\s*\/>/g;
 
 const require = createRequire(join(packageRoot, "package.json"));
 const typescriptPackageJsonPath = require.resolve("typescript/package.json");
-const typescriptVersion = JSON.parse(
-  readFileSync(typescriptPackageJsonPath, "utf8"),
-).version;
+const typescriptVersion = JSON.parse(readFileSync(typescriptPackageJsonPath, "utf8")).version;
 const libDirectory = join(dirname(typescriptPackageJsonPath), "lib");
 
 if (existsSync(outputPath)) {

@@ -167,7 +167,11 @@ const prepareSeaBlob = async (target, nodeVersion) => {
       target,
     });
   const providerConfigAssets = await collectSeaProviderConfigAssets({ root: repositoryRoot });
-  const nodeLicensePath = await stageNodeNotices(seaAssetStagingForTarget(`${target}-node`), nodeVersion, repositoryRoot);
+  const nodeLicensePath = await stageNodeNotices(
+    seaAssetStagingForTarget(`${target}-node`),
+    nodeVersion,
+    repositoryRoot,
+  );
 
   await writeFile(
     seaConfig,

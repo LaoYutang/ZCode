@@ -46,9 +46,20 @@ export function bindPattern(
       }
       const key = bindingPropertyKey(element);
       if (sourcePlace !== undefined && key !== undefined) {
-        bindPatternElement(ev, element.name, extractField(ev, sourcePlace, key), element.initializer, ctx);
+        bindPatternElement(
+          ev,
+          element.name,
+          extractField(ev, sourcePlace, key),
+          element.initializer,
+          ctx,
+        );
       } else {
-        bindPattern(ev, element.name, key === undefined ? collapse(value) : selectField(value, key), ctx);
+        bindPattern(
+          ev,
+          element.name,
+          key === undefined ? collapse(value) : selectField(value, key),
+          ctx,
+        );
       }
     }
     return;
@@ -64,7 +75,13 @@ export function bindPattern(
       continue;
     }
     if (sourcePlace !== undefined) {
-      bindPatternElement(ev, element.name, extractField(ev, sourcePlace, String(index)), element.initializer, ctx);
+      bindPatternElement(
+        ev,
+        element.name,
+        extractField(ev, sourcePlace, String(index)),
+        element.initializer,
+        ctx,
+      );
     } else {
       bindPattern(ev, element.name, selectField(value, String(index)), ctx);
     }
@@ -84,7 +101,8 @@ function bindPatternElement(
   initializer: ts.Expression | undefined,
   ctx: EvalContext,
 ): void {
-  if (initializer !== undefined && mergeInto(field, ev.evalExpr(initializer, ctx))) ev.s.changed = true;
+  if (initializer !== undefined && mergeInto(field, ev.evalExpr(initializer, ctx)))
+    ev.s.changed = true;
   bindPattern(ev, name, field, ctx, field);
 }
 

@@ -85,13 +85,13 @@ const HOISTING_MESSAGE: Record<HoistingContext, string> = {
     "that may or may not exist. Declare it unconditionally and let the branch decide what to report.",
   loop:
     "a preset artifact declared inside a loop: hoist it to the top level and declare it once. " +
-    "A preset is declared once and fed many times — the loop body is where report(item, \"<id>\") " +
+    'A preset is declared once and fed many times — the loop body is where report(item, "<id>") ' +
     "belongs, not the declaration. Re-declaring the same spec is a no-op, but re-declaring it with " +
     "a different spec fails the whole run, so the loop is the wrong place for it either way.",
 };
 
 const NON_LITERAL_ID_MESSAGE =
-  "an artifact id must be a compile-time string literal (\"report\" or a no-substitution template): " +
+  'an artifact id must be a compile-time string literal ("report" or a no-substitution template): ' +
   "the set of artifacts a run can publish is fixed when the script is submitted, so it can be listed " +
   "before anything runs. Write the id inline; put the runtime value in the title instead " +
   '(artifact.file("report", path, { title: `Report for ${name}` })).';
@@ -263,7 +263,10 @@ function primaryLiteralOf(site: ArtifactSite): ts.Node | undefined {
 /** 「已声明的预置有：…」的尾巴；一个都没有时说得更直白。 */
 function describePresets(presetIds: readonly string[]): string {
   if (presetIds.length === 0) return " (this script declares no preset artifacts at all)";
-  return ` (declared presets: ${[...presetIds].sort().map((id) => `"${id}"`).join(", ")})`;
+  return ` (declared presets: ${[...presetIds]
+    .sort()
+    .map((id) => `"${id}"`)
+    .join(", ")})`;
 }
 
 /** 去重（同 id 同种类只留一条）、按 id 字典序。 */
@@ -276,7 +279,9 @@ function sortDeclared(declared: readonly DeclaredArtifact[]): DeclaredArtifact[]
     seen.add(key);
     unique.push(entry);
   }
-  return unique.sort((a, b) => (a.id === b.id ? a.kind.localeCompare(b.kind) : a.id < b.id ? -1 : 1));
+  return unique.sort((a, b) =>
+    a.id === b.id ? a.kind.localeCompare(b.kind) : a.id < b.id ? -1 : 1,
+  );
 }
 
 /**

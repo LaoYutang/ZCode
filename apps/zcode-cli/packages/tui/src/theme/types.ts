@@ -73,4 +73,3 @@ export type TuiLegacyPalette = {
   userMessageBackground: string;
   warning: string;
 };
-

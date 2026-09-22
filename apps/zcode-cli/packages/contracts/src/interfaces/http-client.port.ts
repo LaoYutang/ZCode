@@ -87,8 +87,5 @@ export interface HttpClientRunOptions {
 }
 
 export interface HttpClientPort {
-  request(
-    request: HttpClientRequest,
-    options?: HttpClientRunOptions,
-  ): Promise<HttpClientResponse>;
+  request(request: HttpClientRequest, options?: HttpClientRunOptions): Promise<HttpClientResponse>;
 }

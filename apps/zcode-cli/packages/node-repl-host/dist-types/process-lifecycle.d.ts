@@ -9,14 +9,17 @@
  * 输出管道关闭表示 MCP client 已不可达，必须直接进入 shutdown，不能继续写诊断。
  */
 export declare function installNodeReplProcessGuards(input: {
-    onOutputClosed: (error: Error) => void;
-    process: Pick<NodeJS.Process, "on">;
-    writeStderr: (text: string) => void;
+  onOutputClosed: (error: Error) => void;
+  process: Pick<NodeJS.Process, "on">;
+  writeStderr: (text: string) => void;
 }): void;
 export declare function installNodeReplShutdownTriggers(input: {
-    process: Pick<NodeJS.Process, "once">;
-    shutdown: () => void;
-    stdin: Pick<NodeJS.ReadStream, "once">;
+  process: Pick<NodeJS.Process, "once">;
+  shutdown: () => void;
+  stdin: Pick<NodeJS.ReadStream, "once">;
 }): void;
-export declare function isDirectMcpEntrypoint(importMetaUrl: string, argvPath: string | undefined): Promise<boolean>;
+export declare function isDirectMcpEntrypoint(
+  importMetaUrl: string,
+  argvPath: string | undefined,
+): Promise<boolean>;
 //# sourceMappingURL=process-lifecycle.d.ts.map

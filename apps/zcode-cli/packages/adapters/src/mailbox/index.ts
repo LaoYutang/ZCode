@@ -1,10 +1,6 @@
 import { mkdir, readdir, readFile, rename } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import type {
-  SessionId,
-  SessionMailboxEnvelope,
-  SessionMailboxPort,
-} from "@zcode/contracts";
+import type { SessionId, SessionMailboxEnvelope, SessionMailboxPort } from "@zcode/contracts";
 
 export interface NodeSessionMailboxOptions {
   rootDir: string;

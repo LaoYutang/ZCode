@@ -2,11 +2,7 @@ import type { AnalysisCore } from "./core.js";
 import { isStructuralRegionKind, type RegionKind } from "./constants.js";
 import type { OrderRegion } from "./causality-order.js";
 import { reduceOrdering, type OrderKind } from "./causality-reduce.js";
-import {
-  collectPhaseClaims,
-  projectPhaseGraph,
-  type PhaseSourceFact,
-} from "./phase-graph.js";
+import { collectPhaseClaims, projectPhaseGraph, type PhaseSourceFact } from "./phase-graph.js";
 import type { SiteGraph, SiteLoc, SiteNode } from "./types.js";
 import { SINK_ID, UNKNOWN_LANE, WORKSPACE_LANE } from "./causality-graph-types.js";
 import type { CausalityGraph, Certainty, Fact, Lane } from "./causality-graph-types.js";
@@ -53,7 +49,9 @@ export type { OrderKind, RegionKind };
 /** Project the causality graph off the core plus the (projected) site graph. */
 export function projectCausalityGraph(core: AnalysisCore, site: SiteGraph): CausalityGraph {
   const trace = core.trace;
-  const regionById = new Map<string, OrderRegion>(trace.regions.map((region) => [region.id, region]));
+  const regionById = new Map<string, OrderRegion>(
+    trace.regions.map((region) => [region.id, region]),
+  );
 
   const stepNodes = site.nodes.filter(
     (node): node is SiteNode & { loc: SiteLoc } =>
@@ -281,7 +279,13 @@ export function projectCausalityGraph(core: AnalysisCore, site: SiteGraph): Caus
   for (const edge of site.edges) {
     if (edge.kind !== "data" || !stepIds.has(edge.from)) continue;
     if (edge.to !== SINK_ID && !stepIds.has(edge.to)) continue;
-    facts.push({ certainty: "always", exact: edge.exact, from: edge.from, kind: "data", to: edge.to });
+    facts.push({
+      certainty: "always",
+      exact: edge.exact,
+      from: edge.from,
+      kind: "data",
+      to: edge.to,
+    });
   }
 
   // --- 5. Actor FIFO ---------------------------------------------------------------
@@ -318,7 +322,9 @@ export function projectCausalityGraph(core: AnalysisCore, site: SiteGraph): Caus
     const inside = issueOrder.filter((node) => regionsOf.get(node.id)?.has(region.id) ?? false);
     if (inside.length === 0) continue;
     const first = inside[0] as SiteNode;
-    const settledHere = inside.filter((node) => settledInside.get(region.id)?.has(node.id) ?? false);
+    const settledHere = inside.filter(
+      (node) => settledInside.get(region.id)?.has(node.id) ?? false,
+    );
 
     // (a) The last step this region awaits must settle before the next round starts.
     // Every step the region awaits is therefore serialized against its own next
@@ -409,7 +415,9 @@ export function projectCausalityGraph(core: AnalysisCore, site: SiteGraph): Caus
   const typed: Fact[] = [];
   for (const fact of deduped) {
     const back =
-      fact.viaJump === true || fact.from === fact.to || lastIssueOf(fact.to) <= positionOf(fact.from);
+      fact.viaJump === true ||
+      fact.from === fact.to ||
+      lastIssueOf(fact.to) <= positionOf(fact.from);
     if (!back) {
       typed.push(fact);
       continue;

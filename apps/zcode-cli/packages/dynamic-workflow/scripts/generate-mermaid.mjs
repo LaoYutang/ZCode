@@ -39,7 +39,9 @@ for (const fixture of fixtures) {
   // Every graph fixture is well-typed by construction; fail loudly (and list the
   // diagnostics) rather than silently skipping if one regresses.
   if (!result.ok || result.graph === undefined || result.causality === undefined) {
-    const detail = result.diagnostics.map((d) => `  ${d.line}:${d.column} [TS${d.code}] ${d.message}`).join("\n");
+    const detail = result.diagnostics
+      .map((d) => `  ${d.line}:${d.column} [TS${d.code}] ${d.message}`)
+      .join("\n");
     throw new Error(`fixture ${fixture} did not analyze clean:\n${detail}`);
   }
   const causality = causalityGraphToMermaid(result.causality);
@@ -56,7 +58,14 @@ for (const fixture of fixtures) {
     "",
     ...(phases === undefined || phases.length === 0
       ? []
-      : ["## Phase graph", "", "```mermaid", phaseGraphToMermaid(result.causality).trimEnd(), "```", ""]),
+      : [
+          "## Phase graph",
+          "",
+          "```mermaid",
+          phaseGraphToMermaid(result.causality).trimEnd(),
+          "```",
+          "",
+        ]),
     "## Causality graph",
     "",
     "```mermaid",

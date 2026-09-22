@@ -1,9 +1,4 @@
-import type {
-  InteractionRequestOrigin,
-  SessionId,
-  ToolCallId,
-  TurnId,
-} from "@zcode/contracts";
+import type { InteractionRequestOrigin, SessionId, ToolCallId, TurnId } from "@zcode/contracts";
 
 export interface SubagentInteractionOriginContext {
   agentId: string;

@@ -50,8 +50,7 @@ export function createOnboardingRecordService(
   options: CreateOnboardingRecordServiceOptions = {},
 ): IOnboardingRecordService {
   // 无登录态时 userId 恒为 null；调用点不各自判空。
-  const loadUserId = (): Promise<string | null> =>
-    options.loadUserId?.() ?? Promise.resolve(null);
+  const loadUserId = (): Promise<string | null> => options.loadUserId?.() ?? Promise.resolve(null);
   // 串行化写：引导保存与并发触发判定同时发生时不丢条目。
   let writeQueue: Promise<unknown> = Promise.resolve();
   const enqueueWrite = <T>(task: () => Promise<T>): Promise<T> => {

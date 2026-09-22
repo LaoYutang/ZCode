@@ -77,10 +77,7 @@ export async function createLocalhostOAuthCallbackServer(input: {
         if (!settled) {
           settled = true;
           rejectCallback(
-            createCallbackDeniedError(
-              oauthError,
-              requestUrl.searchParams.get("error_description"),
-            ),
+            createCallbackDeniedError(oauthError, requestUrl.searchParams.get("error_description")),
           );
         }
         return;

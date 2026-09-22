@@ -7,10 +7,7 @@ export {
   resolveTuiThemeMode,
   setActiveTuiThemeMode,
 } from "./state.js";
-export {
-  inferThemeModeFromTerminalColors,
-  resolveInitialTerminalThemeMode,
-} from "./terminal.js";
+export { inferThemeModeFromTerminalColors, resolveInitialTerminalThemeMode } from "./terminal.js";
 export type {
   TuiLegacyPalette,
   TuiThemeMode,

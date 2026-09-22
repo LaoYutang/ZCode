@@ -32,8 +32,8 @@
     "proxy-agent": "^8.0.1"
   },
   "devDependencies": {
-    "@withfig/autocomplete": "2.692.3",
     "@types/node": "^24.0.0",
+    "@withfig/autocomplete": "2.692.3",
     "c8": "^11.0.0",
     "esbuild": "^0.25.0",
     "oxfmt": "^0.47.0",

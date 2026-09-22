@@ -1,7 +1,4 @@
-import {
-  modelMessageContentToText,
-  type ModelInputMessage,
-} from "@zcode/contracts";
+import { modelMessageContentToText, type ModelInputMessage } from "@zcode/contracts";
 
 export function normalizeOpenAiCompatibleSystemMessages(
   messages: readonly ModelInputMessage[],

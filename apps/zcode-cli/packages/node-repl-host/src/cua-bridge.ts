@@ -138,9 +138,7 @@ function requestContext(meta: NodeReplRequestMeta): Record<string, unknown> {
           trace: {
             traceId: stringMeta("trace_id"),
             ...(stringMeta("span_id") ? { spanId: stringMeta("span_id") } : {}),
-            ...(stringMeta("parent_span_id")
-              ? { parentSpanId: stringMeta("parent_span_id") }
-              : {}),
+            ...(stringMeta("parent_span_id") ? { parentSpanId: stringMeta("parent_span_id") } : {}),
           },
         }
       : {}),
@@ -157,7 +155,10 @@ async function sendCuaBrokerRequest(
     const socket = createConnection(broker.socketPath);
     let buffer = "";
     let settled = false;
-    const finish = (error?: unknown, value?: { result: CallToolResult; responseMeta?: Record<string, unknown> }) => {
+    const finish = (
+      error?: unknown,
+      value?: { result: CallToolResult; responseMeta?: Record<string, unknown> },
+    ) => {
       if (settled) return;
       settled = true;
       signal.removeEventListener("abort", onAbort);
@@ -188,7 +189,10 @@ async function sendCuaBrokerRequest(
           responseMeta?: Record<string, unknown>;
         };
         if (payload.id !== id) throw new Error("Computer Use broker response id mismatch");
-        if (payload.ok !== true) throw new Error(typeof payload.error === "string" ? payload.error : "Computer Use broker failed");
+        if (payload.ok !== true)
+          throw new Error(
+            typeof payload.error === "string" ? payload.error : "Computer Use broker failed",
+          );
         if (!payload.result) throw new Error("Computer Use broker returned no result");
         finish(undefined, { result: payload.result, responseMeta: payload.responseMeta });
       } catch (error) {

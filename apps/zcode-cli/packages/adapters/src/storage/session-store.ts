@@ -33,4 +33,7 @@ export type {
   SqliteSessionStoreOptions,
 } from "./session-store/options.js";
 
-export type { AsyncSqliteMigrationOptions, SqliteMigrationProgress } from "./session-store/migration-runner.js";
+export type {
+  AsyncSqliteMigrationOptions,
+  SqliteMigrationProgress,
+} from "./session-store/migration-runner.js";

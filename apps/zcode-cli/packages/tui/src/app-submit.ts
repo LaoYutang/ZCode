@@ -246,10 +246,7 @@ export async function submitIdleTurn(input: {
       ),
     );
   } else {
-    input.setMessages((current) => [
-      ...current,
-      { content: input.text, role: "user" },
-    ]);
+    input.setMessages((current) => [...current, { content: input.text, role: "user" }]);
   }
 
   try {

@@ -112,10 +112,7 @@ function resolveProxyForRequestInternal(
 }
 
 export function resolveTlsCaCertFile(options: NetworkTlsOptions): string | undefined {
-  const candidates = [
-    options.caCertFile,
-    options.env?.[ZCODE_AGENT_CA_CERT_ENV_KEY],
-  ];
+  const candidates = [options.caCertFile, options.env?.[ZCODE_AGENT_CA_CERT_ENV_KEY]];
 
   for (const candidate of candidates) {
     const normalized = normalizePathLike(candidate);
@@ -136,8 +133,7 @@ export function loadTlsCaCertificates(options: NetworkTlsOptions): Buffer | unde
 
 function readExplicitNoProxyValue(options: NetworkProxyOptions): string | undefined {
   return (
-    normalizePathLike(options.noProxy) ??
-    normalizePathLike(options.env?.[ZCODE_NO_PROXY_ENV_KEY])
+    normalizePathLike(options.noProxy) ?? normalizePathLike(options.env?.[ZCODE_NO_PROXY_ENV_KEY])
   );
 }
 

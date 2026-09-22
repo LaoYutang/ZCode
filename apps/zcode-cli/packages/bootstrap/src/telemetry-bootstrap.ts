@@ -13,13 +13,16 @@ export async function prepareZCodeTelemetryEnv(
   env: NodeJS.ProcessEnv = process.env,
   options: PrepareModelTelemetryOptions = {},
 ): Promise<NodeJS.ProcessEnv> {
-  const prepared = await prepareModelTelemetryEnv({
-    ...getCapturedZCodeAgentTelemetryEnv(),
-    ...env,
-  }, {
-    ...options,
-    productVersion: options.productVersion ?? env.ZCODE_APP_VERSION,
-  });
+  const prepared = await prepareModelTelemetryEnv(
+    {
+      ...getCapturedZCodeAgentTelemetryEnv(),
+      ...env,
+    },
+    {
+      ...options,
+      productVersion: options.productVersion ?? env.ZCODE_APP_VERSION,
+    },
+  );
   const deviceMid = prepared.ZCODE_TELEMETRY_DEVICE_MID;
   return deviceMid ? { ...env, ZCODE_TELEMETRY_DEVICE_MID: deviceMid } : env;
 }

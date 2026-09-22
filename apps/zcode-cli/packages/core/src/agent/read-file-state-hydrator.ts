@@ -1,9 +1,4 @@
-import type {
-  MessageId,
-  MessagePart,
-  MessageWithParts,
-  ToolPart,
-} from "@zcode/contracts";
+import type { MessageId, MessagePart, MessageWithParts, ToolPart } from "@zcode/contracts";
 import {
   parseReadFileStateMetadata,
   type PersistedReadFileStateTool,
@@ -88,7 +83,6 @@ function restoreReadToolState(
   const toolInput = asRecord(part.state.input);
   if (!toolInput) return false;
   if (!isHistoricalFullReadWindow(toolInput as HistoricalReadWindow)) {
-
     // 真正的 range Read 只在同一 runtime 内作为最新水位，跨 resume 不恢复。
     result.skippedRangeReadCount++;
     return false;

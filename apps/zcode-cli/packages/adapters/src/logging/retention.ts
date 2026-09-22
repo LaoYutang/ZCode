@@ -108,7 +108,8 @@ export function scheduleLogRetentionCleanup(
     status: "waiting",
   });
   const scheduleTimer =
-    options.setTimeout ?? ((callback: () => void, timeoutMs: number) => setTimeout(callback, timeoutMs));
+    options.setTimeout ??
+    ((callback: () => void, timeoutMs: number) => setTimeout(callback, timeoutMs));
   const timer = scheduleTimer(() => {
     void cleanupLogRetention({
       logDir: options.logDir,

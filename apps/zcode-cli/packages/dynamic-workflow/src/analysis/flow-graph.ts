@@ -146,7 +146,9 @@ const RANK: Readonly<Record<FlowEdgeKind, number>> = {
 
 function retype(srcs: readonly Src[], kind: FlowEdgeKind, via?: FlowVia): Src[] {
   return srcs.map((src) =>
-    RANK[kind] > RANK[src.kind] ? { from: src.from, kind, ...(via === undefined ? {} : { via }) } : src,
+    RANK[kind] > RANK[src.kind]
+      ? { from: src.from, kind, ...(via === undefined ? {} : { via }) }
+      : src,
   );
 }
 
@@ -337,7 +339,8 @@ export function projectControlFlow(core: AnalysisCore): ControlFlowGraph {
     if (region.recursive) {
       // A recursion SCC: only the re-entrant calls close the loop. The body completing
       // normally is the helper RETURNING — that is the exit, and nothing is skipped.
-      for (const src of jumpsBack) for (const entry of entries) emit(src.from, entry, src.kind, src.via);
+      for (const src of jumpsBack)
+        for (const entry of entries) emit(src.from, entry, src.kind, src.via);
       return [...bodyExits, ...passed, ...breaks];
     }
     const back = [...retype(bodyExits, "loop"), ...jumpsBack];
@@ -353,7 +356,11 @@ export function projectControlFlow(core: AnalysisCore): ControlFlowGraph {
   };
 
   const fanout = (node: RegionNode, incoming: readonly Src[]): Src[] => {
-    const { entries, exits: bodyExits, passed } = withEntries(node.children, retype(incoming, "fork"));
+    const {
+      entries,
+      exits: bodyExits,
+      passed,
+    } = withEntries(node.children, retype(incoming, "fork"));
     const returns = settle(take(node.region.id, ["return"]), "join", "return");
     if (entries.length === 0) return dedupeSrcs([...bodyExits, ...passed, ...returns]);
     return dedupeSrcs([...retype(bodyExits, "join"), ...retype(passed, "join"), ...returns]);
@@ -405,7 +412,9 @@ export function projectControlFlow(core: AnalysisCore): ControlFlowGraph {
 
   const tryGroup = (node: RegionNode, incoming: readonly Src[]): Src[] => {
     const part = (kind: OrderRegion["kind"]): RegionNode | undefined =>
-      node.children.find((child): child is RegionNode => child.type === "region" && child.region.kind === kind);
+      node.children.find(
+        (child): child is RegionNode => child.type === "region" && child.region.kind === kind,
+      );
     const attempt = part("attempt");
     const handler = part("catch");
     const finalizer = part("finally");
@@ -420,7 +429,10 @@ export function projectControlFlow(core: AnalysisCore): ControlFlowGraph {
     // (An issue inside a NESTED try also lands here — its own catch may rethrow, so the
     // outer handler stays reachable; over-approximating is the licensed direction.)
     let raised: Src[] = [
-      ...nodes.slice(nodeMark).filter((n) => n.kind === "issue").map((n): Src => ({ from: n.id, kind: "may-throw" })),
+      ...nodes
+        .slice(nodeMark)
+        .filter((n) => n.kind === "issue")
+        .map((n): Src => ({ from: n.id, kind: "may-throw" })),
       ...take(attempt.region.id, ["throw"]),
     ];
     if (handler !== undefined) {
@@ -447,7 +459,11 @@ export function projectControlFlow(core: AnalysisCore): ControlFlowGraph {
     ]);
     for (const entry of escaping) {
       const { kind, via } = jumpEdge(entry.kind);
-      pending.push({ kind: entry.kind, srcs: retype(finallyExits, kind, via), target: entry.target });
+      pending.push({
+        kind: entry.kind,
+        srcs: retype(finallyExits, kind, via),
+        target: entry.target,
+      });
     }
     if (raised.length > 0) raiseOutward(node.region, retype(finallyExits, "throw"));
     return normal.length > 0 ? finallyExits : [];
@@ -460,7 +476,8 @@ export function projectControlFlow(core: AnalysisCore): ControlFlowGraph {
   // doubled at each one until `push(...exits)` overflowed the call stack with 135,200 copies
   // of ONE source. Dedup at the one seam every construct flows through, so no list ever
   // exceeds |nodes| × |kinds| entries whatever the shape.
-  const flow = (node: TreeNode, incoming: readonly Src[]): Src[] => dedupeSrcs(flowRaw(node, incoming));
+  const flow = (node: TreeNode, incoming: readonly Src[]): Src[] =>
+    dedupeSrcs(flowRaw(node, incoming));
   const flowRaw = (node: TreeNode, incoming: readonly Src[]): Src[] => {
     if (node.type === "leaf") return leaf(node, incoming);
     // `strand` rides on a `call` or a `fanout` and overrides both: what matters is that
@@ -510,7 +527,9 @@ export function projectControlFlow(core: AnalysisCore): ControlFlowGraph {
   return {
     edges,
     nodes,
-    ...(trace.phases.length === 0 ? {} : { phaseEdges: quotientFlow(nodes, edges, phases), phases }),
+    ...(trace.phases.length === 0
+      ? {}
+      : { phaseEdges: quotientFlow(nodes, edges, phases), phases }),
   };
 }
 
@@ -528,4 +547,3 @@ function sortEdges(nodes: readonly FlowNode[], edges: FlowEdge[]): void {
       (a.via ?? "").localeCompare(b.via ?? ""),
   );
 }
-

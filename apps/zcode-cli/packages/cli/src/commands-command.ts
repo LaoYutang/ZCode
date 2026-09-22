@@ -127,10 +127,7 @@ function reportCommandsError(ctx: RunContext, options: GlobalOptions, error: unk
   return 1;
 }
 
-function formatHumanCommandList(
-  outcome: CustomCommandListOutcome,
-  options: GlobalOptions,
-): string {
+function formatHumanCommandList(outcome: CustomCommandListOutcome, options: GlobalOptions): string {
   if (outcome.commands.length === 0) {
     return "No custom commands found.\n";
   }

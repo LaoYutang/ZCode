@@ -35,8 +35,7 @@ const require = __zcodeCreateRequire(import.meta.url);`;
 //
 // 取值与 desktop 侧保持同一来源：CI 注入 ZCODE_CUA_HELPER_BUILD_ID env；dev 为空串走兜底
 // （dev Helper 不走下载/pin 校验）。见 packages/desktop/tsup.config.ts 同名 define 的注释。
-const resolveCuaHelperBuildId = (env = process.env) =>
-  env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "";
+const resolveCuaHelperBuildId = (env = process.env) => env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "";
 
 export const buildNodeReplHostBundle = async ({
   outfile = resolve(packageRoot, "dist", "mcp", "server.js"),

@@ -71,7 +71,13 @@ export function useModelProviderNavigation({
     if (selectedNodeKey !== fallbackNodeKey) {
       setSelectedNodeKey(fallbackNodeKey);
     }
-  }, [fallbackNodeKey, modelProvidersLoading, selectedNavItem, selectedNodeKey, setSelectedNodeKey]);
+  }, [
+    fallbackNodeKey,
+    modelProvidersLoading,
+    selectedNavItem,
+    selectedNodeKey,
+    setSelectedNodeKey,
+  ]);
 
   return {
     navigationGroups,

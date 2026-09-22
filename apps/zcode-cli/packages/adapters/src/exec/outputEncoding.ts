@@ -52,10 +52,7 @@ function isMissingOrCLocale(value: string | undefined): boolean {
   return normalized === "" || normalized === "C" || normalized === "POSIX";
 }
 
-function resolveFallbackUtf8Locale(
-  env: NodeJS.ProcessEnv,
-  platform: NodeJS.Platform,
-): string {
+function resolveFallbackUtf8Locale(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string {
   const inheritedUtf8Locale = [
     getEnvValue(env, "LC_ALL", platform),
     getEnvValue(env, "LC_CTYPE", platform),

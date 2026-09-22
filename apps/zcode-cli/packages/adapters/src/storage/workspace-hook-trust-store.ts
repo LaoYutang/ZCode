@@ -32,10 +32,7 @@ interface LockOwnerMetadata {
   startTime?: number;
 }
 
-async function defaultWriteLockOwnerMetadata(
-  handle: FileHandle,
-  content: string,
-): Promise<void> {
+async function defaultWriteLockOwnerMetadata(handle: FileHandle, content: string): Promise<void> {
   await handle.writeFile(content, "utf8");
 }
 
@@ -167,10 +164,7 @@ export class FileWorkspaceHookTrustStore {
   private readonly renameFile: typeof rename;
   private readonly renameRetryDelaysMs: readonly number[];
   private readonly probeProcessStartTime: (pid: number) => Promise<number | null>;
-  private readonly writeLockOwnerMetadata: (
-    handle: FileHandle,
-    content: string,
-  ) => Promise<void>;
+  private readonly writeLockOwnerMetadata: (handle: FileHandle, content: string) => Promise<void>;
   private mutationQueue: Promise<unknown> = Promise.resolve();
 
   constructor(options: FileWorkspaceHookTrustStoreOptions) {
@@ -210,9 +204,7 @@ export class FileWorkspaceHookTrustStore {
       // 空数组会生成空 Set，filter 因而保留全部记录并静默成功，调用方无法
       // 区分“撤销全部”的 undefined 与“没有目标”的无效请求。三态固定为：undefined
       // 撤销 workspace 全部、非空数组精确撤销、空数组在任何 IO 前拒绝。
-      return Promise.reject(
-        new Error("hookDeclarationDigests must be undefined or non-empty"),
-      );
+      return Promise.reject(new Error("hookDeclarationDigests must be undefined or non-empty"));
     }
     const selected = options.hookDeclarationDigests
       ? new Set(options.hookDeclarationDigests)
@@ -487,12 +479,7 @@ export class FileWorkspaceHookTrustStore {
       await handle.close();
       handle = undefined;
       await this.beforeRename?.();
-      await renameWithRetry(
-        this.renameFile,
-        tempPath,
-        this.filePath,
-        this.renameRetryDelaysMs,
-      );
+      await renameWithRetry(this.renameFile, tempPath, this.filePath, this.renameRetryDelaysMs);
       await chmod(this.filePath, 0o600);
     } catch (error) {
       await handle?.close().catch(() => undefined);

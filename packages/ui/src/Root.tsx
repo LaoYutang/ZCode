@@ -82,7 +82,10 @@ interface RemoteConnectionOpenPreference {
   preferredWslDistro?: string;
 }
 
-type WelcomeScreenOpenReason = "startup-provider-required" | "manual-add-provider" | "provider-request";
+type WelcomeScreenOpenReason =
+  | "startup-provider-required"
+  | "manual-add-provider"
+  | "provider-request";
 
 /**
  * Root —— 应用根组件

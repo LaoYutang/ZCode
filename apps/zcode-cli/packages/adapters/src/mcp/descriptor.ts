@@ -1,8 +1,4 @@
-import type {
-  JsonSchema,
-  McpToolAnnotations,
-  McpToolDescriptor,
-} from "@zcode/contracts";
+import type { JsonSchema, McpToolAnnotations, McpToolDescriptor } from "@zcode/contracts";
 
 export function normalizeMcpToolDescriptor(
   serverName: string,

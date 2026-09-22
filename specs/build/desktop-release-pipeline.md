@@ -22,11 +22,11 @@
 
 文件名由 `electron-updater` 客户端按平台固定请求（`Provider.getChannelFilePrefix`），**不可改名**：
 
-| 平台 | 产出文件 | 必须覆盖的架构 |
-| --- | --- | --- |
-| Windows | `latest.yml` | x64 + arm64（两个 `.exe` 都在 `files[]`） |
-| macOS | `latest-mac.yml` | x64 + arm64（各架构的 dmg/zip 都在 `files[]`） |
-| Linux | `latest-linux.yml`、`latest-linux-arm64.yml` | 各自覆盖 x64 / arm64 |
+| 平台    | 产出文件                                     | 必须覆盖的架构                                 |
+| ------- | -------------------------------------------- | ---------------------------------------------- |
+| Windows | `latest.yml`                                 | x64 + arm64（两个 `.exe` 都在 `files[]`）      |
+| macOS   | `latest-mac.yml`                             | x64 + arm64（各架构的 dmg/zip 都在 `files[]`） |
+| Linux   | `latest-linux.yml`、`latest-linux-arm64.yml` | 各自覆盖 x64 / arm64                           |
 
 构建步骤必须在本地就断言「本平台的 channel 文件存在且覆盖了本次构建的全部架构」，不能等客户端报 `ERR_UPDATER_CHANNEL_FILE_NOT_FOUND`。
 
@@ -44,12 +44,12 @@
 
 ## 唯一所有者
 
-| 事实 | 唯一所有者 |
-| --- | --- |
-| job 级目标平台（OS）与本次构建的架构集合 | `packages/desktop/scripts/target-platform.mjs`：`getTargetPlatform()`（OS + 默认架构）、`resolveTargetArches()`、`resolvePackContextTarget(context)` |
-| 每个 pack target 的 os/arch/key | `resolvePackContextTarget()`；`electron-builder.config.js` 的钩子必须从 `context` 解析，不得用 env 声明的架构替代 |
-| 哪些文件进 Release、以什么名字、校验和怎么写 | `packages/desktop/scripts/release-assets.mjs` |
-| 应用版本 | `packages/desktop/scripts/build-metadata.mjs`（见 `specs/build/app-version-source.md`） |
+| 事实                                         | 唯一所有者                                                                                                                                           |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| job 级目标平台（OS）与本次构建的架构集合     | `packages/desktop/scripts/target-platform.mjs`：`getTargetPlatform()`（OS + 默认架构）、`resolveTargetArches()`、`resolvePackContextTarget(context)` |
+| 每个 pack target 的 os/arch/key              | `resolvePackContextTarget()`；`electron-builder.config.js` 的钩子必须从 `context` 解析，不得用 env 声明的架构替代                                    |
+| 哪些文件进 Release、以什么名字、校验和怎么写 | `packages/desktop/scripts/release-assets.mjs`                                                                                                        |
+| 应用版本                                     | `packages/desktop/scripts/build-metadata.mjs`（见 `specs/build/app-version-source.md`）                                                              |
 
 ## 迁移边界
 
@@ -59,11 +59,11 @@
 
 ## 失败语义
 
-| 情况 | 表现 |
-| --- | --- |
-| channel 文件缺少某支架构 | 构建步骤失败（`bundle.mjs` 的 post-build 校验） |
-| 上传集合出现同名文件 | 在创建 draft 之前失败并列出冲突文件 |
-| 上传中途失败 | draft 残缺；重跑前必须人工删除该 draft（守卫拒绝覆盖） |
+| 情况                                     | 表现                                                   |
+| ---------------------------------------- | ------------------------------------------------------ |
+| channel 文件缺少某支架构                 | 构建步骤失败（`bundle.mjs` 的 post-build 校验）        |
+| 上传集合出现同名文件                     | 在创建 draft 之前失败并列出冲突文件                    |
+| 上传中途失败                             | draft 残缺；重跑前必须人工删除该 draft（守卫拒绝覆盖） |
 | tag 版本与 channel 文件 `version` 不一致 | 构建步骤失败（见 `specs/build/app-version-source.md`） |
 
 ## 验收场景

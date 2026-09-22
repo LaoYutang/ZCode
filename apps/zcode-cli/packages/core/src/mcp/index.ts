@@ -148,7 +148,6 @@ function createMcpToolEntry(
         };
 
   return {
-
     // 因精确查找直接返回 Tool not found。只在不可伪造的官方 authority 门成立且内部
     // serverName 仍是官方 namespaced 名时挂单向别名；provider 继续只看规范名称。
     aliases: officialCuaProviderSpellingAliases(name, descriptor, officialCuaAuthorityVerified),

@@ -184,9 +184,15 @@ function normalizeLimitLines(limitLines: number | undefined): number | undefined
   return Math.max(0, Math.trunc(limitLines));
 }
 
-function selectLines(lines: string[], offsetLine: number, limitLines: number | undefined): string[] {
+function selectLines(
+  lines: string[],
+  offsetLine: number,
+  limitLines: number | undefined,
+): string[] {
   const limit = normalizeLimitLines(limitLines);
-  return limit === undefined ? lines.slice(offsetLine) : lines.slice(offsetLine, offsetLine + limit);
+  return limit === undefined
+    ? lines.slice(offsetLine)
+    : lines.slice(offsetLine, offsetLine + limit);
 }
 
 function shouldSelectLine(

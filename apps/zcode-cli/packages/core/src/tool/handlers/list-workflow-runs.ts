@@ -183,7 +183,8 @@ export const listWorkflowRunsToolEntry: ToolEntry = {
   cancellation: {
     supported: false,
     cleanup: "none",
-    userVisibleMessage: "ListWorkflowRuns reads the run journal synchronously and cannot be cancelled",
+    userVisibleMessage:
+      "ListWorkflowRuns reads the run journal synchronously and cannot be cancelled",
   },
   trace: {
     required: true,

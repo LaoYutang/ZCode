@@ -290,7 +290,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
           CSC_LINK: ${{ matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true' && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && needs.prepare.outputs.sign_macos == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-        run: pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arches }}  # 多架构用同一次 electron-builder 调用产出
+        run: pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arches }} # 多架构用同一次 electron-builder 调用产出
 
       - name: Verify packaged app version
         shell: bash

@@ -112,7 +112,6 @@ function runSettingsActionAsync<T>(options: {
   });
 }
 
-
 function SettingsSidebarButton({
   icon: Icon,
   label,

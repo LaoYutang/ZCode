@@ -12,11 +12,11 @@
 
 新增构建期输入 `ZCODE_UPDATE_REPOSITORY`（`owner/repo`），解析成编译期常量 `ZCODE_UPDATE_SOURCE`，取值三态：
 
-| `ZCODE_UPDATE_REPOSITORY` | flavor | `ZCODE_UPDATE_SOURCE` | 行为 |
-| --- | --- | --- | --- |
-| 已设置 | 任意 | `github-release` | 检测自己的 GitHub Release，仅提示并跳转下载页 |
-| 未设置 | `production` | `zcode-manifest` | **现状不变**：官方 manifest + 自动下载安装 |
-| 未设置 | `preview` | `disabled` | 同今天：不启用更新器 |
+| `ZCODE_UPDATE_REPOSITORY` | flavor       | `ZCODE_UPDATE_SOURCE` | 行为                                          |
+| ------------------------- | ------------ | --------------------- | --------------------------------------------- |
+| 已设置                    | 任意         | `github-release`      | 检测自己的 GitHub Release，仅提示并跳转下载页 |
+| 未设置                    | `production` | `zcode-manifest`      | **现状不变**：官方 manifest + 自动下载安装    |
+| 未设置                    | `preview`    | `disabled`            | 同今天：不启用更新器                          |
 
 `ZCODE_UPDATE_SOURCE` 是更新相关行为的**单一事实来源**，主进程与渲染端都从它派生，不再各自判断 flavor。`owner/repo` 非法时构建期直接失败。
 
@@ -44,15 +44,15 @@
 
 ## 失败语义
 
-| 情况 | 表现 |
-| --- | --- |
-| Release 缺对应平台的 `latest*.yml` | `checkForUpdates` 抛 `ERR_UPDATER_CHANNEL_FILE_NOT_FOUND` → "暂无法检查更新：发布产物缺少更新描述文件" |
+| 情况                                | 表现                                                                                                                                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release 缺对应平台的 `latest*.yml`  | `checkForUpdates` 抛 `ERR_UPDATER_CHANNEL_FILE_NOT_FOUND` → "暂无法检查更新：发布产物缺少更新描述文件"                                                                                  |
 | tag 已推、Release 还没发布（draft） | GitHub 把 `releases/latest` 重定向到 `/releases` **索引页**，该页面对 `Accept: application/json` 返回 **406** → provider 抛 `ERR_UPDATER_INVALID_RELEASE_FEED` → 归入"解析不出最新发布" |
-| 仓库没有任何 Release | 同上一行（`ERR_UPDATER_LATEST_VERSION_NOT_FOUND` / 无 code 的 `No published versions on GitHub`） |
-| Release 是 draft 或 prerelease | `releases/latest` 跳过它 → 同上 |
-| release notes 接口失败/限流 | 降级为只有版本号 + 跳转链接 |
-| 网络不可达 | 与现有行为一致：吞掉错误回到 idle，不阻塞主流程 |
-| `owner/repo` 格式非法 | 构建期失败 |
+| 仓库没有任何 Release                | 同上一行（`ERR_UPDATER_LATEST_VERSION_NOT_FOUND` / 无 code 的 `No published versions on GitHub`）                                                                                       |
+| Release 是 draft 或 prerelease      | `releases/latest` 跳过它 → 同上                                                                                                                                                         |
+| release notes 接口失败/限流         | 降级为只有版本号 + 跳转链接                                                                                                                                                             |
+| 网络不可达                          | 与现有行为一致：吞掉错误回到 idle，不阻塞主流程                                                                                                                                         |
+| `owner/repo` 格式非法               | 构建期失败                                                                                                                                                                              |
 
 ### 「解析不出最新发布」的归类规则
 

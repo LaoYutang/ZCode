@@ -32,14 +32,19 @@ const builtinProviders = parseZCodeBuiltinProviderConfigMap(rawRules);
 const builtinTemplates = parseProviderTemplateMap(rawTemplates);
 const builtinModelRules = parseZCodeBuiltinModelConfigRules(raw.config.modelConfigRules);
 
-check("内置 provider 为空（应用不内置任何供应商）", builtinProviders.keys().length === 0, `count=${builtinProviders.keys().length}`);
-check("添加供应商模板仍可用（含智谱自带 Key 模板）", builtinTemplates.keys().length >= 20, `count=${builtinTemplates.keys().length}`);
+check(
+  "内置 provider 为空（应用不内置任何供应商）",
+  builtinProviders.keys().length === 0,
+  `count=${builtinProviders.keys().length}`,
+);
+check(
+  "添加供应商模板仍可用（含智谱自带 Key 模板）",
+  builtinTemplates.keys().length >= 20,
+  `count=${builtinTemplates.keys().length}`,
+);
 check("解码后的内置配置 providers 为空", release.config.providers.keys().length === 0);
 check("内置配置不含 account: provider", !JSON.stringify(release).includes("account:"));
-check(
-  "内置配置不含 zhipu-account 访问类型",
-  !JSON.stringify(release).includes("zhipu-account"),
-);
+check("内置配置不含 zhipu-account 访问类型", !JSON.stringify(release).includes("zhipu-account"));
 
 let accountRejected = false;
 try {
@@ -85,10 +90,22 @@ const resolution = new ProviderConfigResolver().resolve({
 const registryIds = resolution.registryProviders.map((p) => p.providerId);
 const userProvider = resolution.registryProviders.find((p) => p.providerId === "user-1");
 
-check("用户自建 provider 进入 Registry（可执行）", registryIds.includes("user-1"), `registry=[${registryIds.join(",")}]`);
+check(
+  "用户自建 provider 进入 Registry（可执行）",
+  registryIds.includes("user-1"),
+  `registry=[${registryIds.join(",")}]`,
+);
 check("Registry 不含任何内置账号 provider", !registryIds.some((id) => id.startsWith("account:")));
-check("用户自建 provider 的模型已解析", userProvider?.models.length === 1, `models=${userProvider?.models.length ?? 0}`);
-check("解析无配置问题", resolution.issues.length === 0, `issues=${JSON.stringify(resolution.issues)}`);
+check(
+  "用户自建 provider 的模型已解析",
+  userProvider?.models.length === 1,
+  `models=${userProvider?.models.length ?? 0}`,
+);
+check(
+  "解析无配置问题",
+  resolution.issues.length === 0,
+  `issues=${JSON.stringify(resolution.issues)}`,
+);
 check(
   "历史 account:* 选择解析为空（优雅失效、不崩溃）",
   resolution.resolvedProviders.every((p) => !p.providerId.startsWith("account:")),

@@ -475,14 +475,7 @@ export function useRootPlatformEffects({
         importOperationRef.current = null;
         setShareImportRevision((revision) => revision + 1);
       });
-  }, [
-    activateTabByPath,
-    addTab,
-    baseServices,
-    intl,
-    locale,
-    shareImportRevision,
-  ]);
+  }, [activateTabByPath, addTab, baseServices, intl, locale, shareImportRevision]);
 
   useEffect(() => {
     if (!isDesktop || !shouldPublishCompleteWorkspaceSnapshot(hasCompletedFullTabRestore)) {

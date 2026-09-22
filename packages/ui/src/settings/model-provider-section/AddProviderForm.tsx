@@ -46,9 +46,10 @@ export function AddProviderForm({ onSaved, onCancel }: AddProviderFormProps) {
   const providerSettingsView =
     providerSettingsRead.state.status === "ready" ? providerSettingsRead.state.view : null;
   const templates = useMemo(
-    () => (providerSettingsView?.providerTemplates ?? []).filter((template) =>
-      isApiKeyAccess(template.config.access),
-    ),
+    () =>
+      (providerSettingsView?.providerTemplates ?? []).filter((template) =>
+        isApiKeyAccess(template.config.access),
+      ),
     [providerSettingsView],
   );
   const [templateId, setTemplateId] = useState<string | null>(null);

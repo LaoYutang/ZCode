@@ -136,15 +136,14 @@ export function ModelProviderSection({
     [applyModelProviderTarget],
   );
 
-  const { navigationGroups, selectedNavItem, navigationUnavailable } =
-    useModelProviderNavigation({
-      modelProviders,
-      modelProvidersLoading: loading,
-      displayOrder,
-      selectedNodeKey,
-      setSelectedNodeKey,
-      intl,
-    });
+  const { navigationGroups, selectedNavItem, navigationUnavailable } = useModelProviderNavigation({
+    modelProviders,
+    modelProvidersLoading: loading,
+    displayOrder,
+    selectedNodeKey,
+    setSelectedNodeKey,
+    intl,
+  });
 
   const handleSave = useCallback(
     async (config: ProviderSettingsFormProvider) => {

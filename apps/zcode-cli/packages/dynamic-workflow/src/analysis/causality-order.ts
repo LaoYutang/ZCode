@@ -91,7 +91,8 @@ export function traceOrder(
   oracle: OrderOracle,
 ): OrderTrace {
   const state = createTraceState(workflow, table, oracle, walkNode);
-  const { controls, events, fnStack, issued, phases, regions, returnTargets, root, walkedFns } = state;
+  const { controls, events, fnStack, issued, phases, regions, returnTargets, root, walkedFns } =
+    state;
 
   walkStatements(state, state.body.statements, [root]);
 

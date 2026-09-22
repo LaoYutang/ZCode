@@ -1,11 +1,5 @@
 /* eslint-disable max-lines -- 定时任务主视图集中维护列表、创建/编辑整页路由与启停/删除操作，集中更利于交互一致。 */
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type ComponentType,
-  type SVGProps,
-} from "react";
+import { useCallback, useEffect, useState, type ComponentType, type SVGProps } from "react";
 import { CircleCheck, RotateCcw, TriangleAlert } from "lucide-react";
 import {
   AUTOMATION_CREATE_LIMIT,
@@ -424,7 +418,8 @@ export function AutomationsSection({
   const hasAnyTasks = automations.length > 0;
   const hasVisibleTaskCards = automations.length > 0;
   const visibleAutomations = filterAutomationsByStatus(automations, statusFilter);
-  const hasVisibleTemplates = automationTemplates.scheduled.length > 0 || automationTemplates.loading;
+  const hasVisibleTemplates =
+    automationTemplates.scheduled.length > 0 || automationTemplates.loading;
   const showTaskTemplateSeparator = hasVisibleTaskCards && hasVisibleTemplates;
   const [loadedWorkspaceKey, setLoadedWorkspaceKey] = useState<string | null>(null);
   // 相对时间基准;刷新列表时更新,避免频繁 setInterval。

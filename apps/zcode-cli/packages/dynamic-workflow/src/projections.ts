@@ -49,7 +49,12 @@ export {
   type TraceRegionKind,
 } from "./analysis/constants.js";
 export { projectSiteGraph } from "./analysis/graph.js";
-export { toActorGraph, type ActorEdge, type ActorGraph, type ActorNode } from "./analysis/actor-graph.js";
+export {
+  toActorGraph,
+  type ActorEdge,
+  type ActorGraph,
+  type ActorNode,
+} from "./analysis/actor-graph.js";
 export {
   projectCausalityGraph,
   SINK_ID,
@@ -104,4 +109,11 @@ export {
   serializeGraph,
   serializeHandoffGraph,
 } from "./analysis/serialize.js";
-export type { ActorSite, SiteEdge, SiteGraph, SiteKind, SiteLoc, SiteNode } from "./analysis/types.js";
+export type {
+  ActorSite,
+  SiteEdge,
+  SiteGraph,
+  SiteKind,
+  SiteLoc,
+  SiteNode,
+} from "./analysis/types.js";

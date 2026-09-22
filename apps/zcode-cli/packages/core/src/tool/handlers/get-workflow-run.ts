@@ -173,9 +173,7 @@ const getWorkflowRunHandler: ToolHandler = async (input, context) => {
                   ? {}
                   : { contentType: artifact.contentType }),
                 ...(latest?.bytes === undefined ? {} : { bytes: latest.bytes }),
-                ...(artifact.sourcePath === undefined
-                  ? {}
-                  : { sourcePath: artifact.sourcePath }),
+                ...(artifact.sourcePath === undefined ? {} : { sourcePath: artifact.sourcePath }),
                 itemCount: artifact.itemCount,
                 ...(artifact.primary === true ? { primary: true as const } : {}),
               };
@@ -242,7 +240,8 @@ export const getWorkflowRunToolEntry: ToolEntry = {
   cancellation: {
     supported: false,
     cleanup: "none",
-    userVisibleMessage: "GetWorkflowRun reads the run journal synchronously and cannot be cancelled",
+    userVisibleMessage:
+      "GetWorkflowRun reads the run journal synchronously and cannot be cancelled",
   },
   trace: {
     required: true,

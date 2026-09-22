@@ -19,13 +19,7 @@ import {
   canTransitionTo,
   isTerminalPhase,
 } from "./turn-state.js";
-import type {
-  ModelMessageContent,
-  SessionId,
-  TraceId,
-  ToolCallId,
-  TurnId,
-} from "@zcode/contracts";
+import type { ModelMessageContent, SessionId, TraceId, ToolCallId, TurnId } from "@zcode/contracts";
 import type { PendingTurnInput } from "@zcode/contracts";
 import {
   createTurnId,

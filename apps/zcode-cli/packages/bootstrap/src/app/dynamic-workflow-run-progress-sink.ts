@@ -57,12 +57,16 @@ export function createDynamicWorkflowRunProgressSink(
     // 缺席是合法的（submit 未带 parentSessionId）：本 app 的端口只可能被本会话触达，
     // 所以缺席等价于"就是本会话"。只有**明确不等**才是接线错误。
     if (parentSessionId !== undefined && parentSessionId !== deps.sessionId) {
-      warn("Dynamic workflow run progress dropped: parent session is not this app", progress.runId, {
-        event: "dynamic_workflow.run_progress.session_mismatch",
-        expectedSessionId: deps.sessionId,
-        parentSessionId,
-        reason: "run_parent_session_not_owned_by_this_app",
-      });
+      warn(
+        "Dynamic workflow run progress dropped: parent session is not this app",
+        progress.runId,
+        {
+          event: "dynamic_workflow.run_progress.session_mismatch",
+          expectedSessionId: deps.sessionId,
+          parentSessionId,
+          reason: "run_parent_session_not_owned_by_this_app",
+        },
+      );
       return;
     }
 

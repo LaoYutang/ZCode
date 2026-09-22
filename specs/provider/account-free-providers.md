@@ -44,21 +44,21 @@ ZCode 原设计与智谱官方账号体系绑定：应用内置 Z.ai / BigModel 
 
 ## 唯一所有者
 
-| 状态 | 所有者 |
-| --- | --- |
-| 内置供应商模板与模型元数据 | `packages/provider/src/sources.ts` 读取的内置配置文件 |
-| 用户供应商与默认模型选择 | 个人 provider 配置文件（`packages/provider-node` 的仓库实现） |
-| provider 解析结果 | `ProviderConfigResolver`（`packages/provider/src/resolver.ts`） |
-| 通用凭据 | 凭据存储服务（与账号无关） |
+| 状态                       | 所有者                                                          |
+| -------------------------- | --------------------------------------------------------------- |
+| 内置供应商模板与模型元数据 | `packages/provider/src/sources.ts` 读取的内置配置文件           |
+| 用户供应商与默认模型选择   | 个人 provider 配置文件（`packages/provider-node` 的仓库实现）   |
+| provider 解析结果          | `ProviderConfigResolver`（`packages/provider/src/resolver.ts`） |
+| 通用凭据                   | 凭据存储服务（与账号无关）                                      |
 
 ## 失败语义
 
-| 情况 | 表现 |
-| --- | --- |
-| 首次启动、尚未添加任何供应商 | 模型选择为空，界面引导添加供应商；不阻塞启动，不出现登录入口 |
-| 历史会话的默认模型指向已移除的 `account:*` | 该选择解析为不可用，提示重新选择；不抛异常、不崩溃 |
-| 内置配置远程下发了更高 revision | 已切断远程来源（`applyRemoteRelease` 已随死代码删除），不再回灌；打包配置与 Active 缓存按 revision 取大，见「迁移边界」 |
-| 用户删除最后一个供应商 | 回到「首次启动」状态，可再次添加 |
+| 情况                                       | 表现                                                                                                                    |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| 首次启动、尚未添加任何供应商               | 模型选择为空，界面引导添加供应商；不阻塞启动，不出现登录入口                                                            |
+| 历史会话的默认模型指向已移除的 `account:*` | 该选择解析为不可用，提示重新选择；不抛异常、不崩溃                                                                      |
+| 内置配置远程下发了更高 revision            | 已切断远程来源（`applyRemoteRelease` 已随死代码删除），不再回灌；打包配置与 Active 缓存按 revision 取大，见「迁移边界」 |
+| 用户删除最后一个供应商                     | 回到「首次启动」状态，可再次添加                                                                                        |
 
 ## 迁移边界
 
@@ -82,12 +82,12 @@ ZCode 原设计与智谱官方账号体系绑定：应用内置 Z.ai / BigModel 
 
 ### 验证结果（第一轮，实测）
 
-| 命令 | 结果 |
-| --- | --- |
-| `pnpm typecheck` | 0 error |
-| `pnpm lint` | 0 error（73 warning） |
-| `pnpm architecture:check --changed` | violations 0（baseline 0 / new 0） |
-| CLI 11 个包 `node apps/zcode-cli/node_modules/typescript/bin/tsc -p apps/zcode-cli/packages/<pkg>/tsconfig.json` | 全部无输出 |
+| 命令                                                                                                             | 结果                               |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `pnpm typecheck`                                                                                                 | 0 error                            |
+| `pnpm lint`                                                                                                      | 0 error（73 warning）              |
+| `pnpm architecture:check --changed`                                                                              | violations 0（baseline 0 / new 0） |
+| CLI 11 个包 `node apps/zcode-cli/node_modules/typescript/bin/tsc -p apps/zcode-cli/packages/<pkg>/tsconfig.json` | 全部无输出                         |
 
 CLI 顺序：shared-types、contracts、dynamic-workflow、i18n、telemetry、dynamic-workflow-runtime、core、adapters、bootstrap、tui、cli；前置 `npx tsc -b --force packages/rpc packages/shared packages/provider packages/provider-node`。
 
@@ -125,15 +125,15 @@ CLI 顺序：shared-types、contracts、dynamic-workflow、i18n、telemetry、dy
 
 ### 验证结果（第二轮，实测）
 
-| 命令 | 结果 |
-| --- | --- |
-| `pnpm typecheck` | 0 error |
-| `pnpm lint` | 0 error（73 warning，与改动前一致） |
-| `pnpm architecture:check --changed` | violations 0（baseline 0 / new 0） |
-| CLI 11 个包 `tsc -p apps/zcode-cli/packages/<pkg>/tsconfig.json` | 全部无输出 |
-| `tsc -p packages/desktop/tsconfig.host.json --noEmit` | 0 error（基线 0） |
-| `tsc -p packages/desktop/tsconfig.preload.json --noEmit` | 0 error（基线 3，由 B 修复） |
-| `tsc -p packages/desktop/tsconfig.main.json --noEmit` | 83 error（基线 84，少的一个是 B 修复的 `WindowControlsOverlayReadyPayload`；其余为既有错误） |
+| 命令                                                             | 结果                                                                                         |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`                                                 | 0 error                                                                                      |
+| `pnpm lint`                                                      | 0 error（73 warning，与改动前一致）                                                          |
+| `pnpm architecture:check --changed`                              | violations 0（baseline 0 / new 0）                                                           |
+| CLI 11 个包 `tsc -p apps/zcode-cli/packages/<pkg>/tsconfig.json` | 全部无输出                                                                                   |
+| `tsc -p packages/desktop/tsconfig.host.json --noEmit`            | 0 error（基线 0）                                                                            |
+| `tsc -p packages/desktop/tsconfig.preload.json --noEmit`         | 0 error（基线 3，由 B 修复）                                                                 |
+| `tsc -p packages/desktop/tsconfig.main.json --noEmit`            | 83 error（基线 84，少的一个是 B 修复的 `WindowControlsOverlayReadyPayload`；其余为既有错误） |
 
 ### 第三轮遗留面清理（A–E）
 
@@ -147,16 +147,16 @@ CLI 顺序：shared-types、contracts、dynamic-workflow、i18n、telemetry、dy
 
 ### 验证结果（第三轮，实测）
 
-| 命令 | 结果 |
-| --- | --- |
-| `pnpm typecheck \| grep -c "error TS"` | 0 |
-| `pnpm lint` | 0 error（73 warning，与改动前一致） |
-| `pnpm architecture:check --changed` | violations 0（baseline 0 / new 0） |
-| CLI 11 个包 `tsc -p apps/zcode-cli/packages/<pkg>/tsconfig.json`（前置 `npx tsc -b --force packages/rpc packages/shared packages/provider packages/provider-node`） | 全部无输出 |
-| `tsc -p packages/desktop/tsconfig.host.json --noEmit` | 0 error（基线 0） |
-| `tsc -p packages/desktop/tsconfig.preload.json --noEmit` | 0 error（基线 0） |
-| `tsc -p packages/desktop/tsconfig.main.json --noEmit` | 83 error（与第二轮基线一致，未增加） |
-| 死键复核 `grep -rnIF -f <373 键>` | 全仓 0 命中（含两 locale 文件本身） |
+| 命令                                                                                                                                                                | 结果                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `pnpm typecheck \| grep -c "error TS"`                                                                                                                              | 0                                    |
+| `pnpm lint`                                                                                                                                                         | 0 error（73 warning，与改动前一致）  |
+| `pnpm architecture:check --changed`                                                                                                                                 | violations 0（baseline 0 / new 0）   |
+| CLI 11 个包 `tsc -p apps/zcode-cli/packages/<pkg>/tsconfig.json`（前置 `npx tsc -b --force packages/rpc packages/shared packages/provider packages/provider-node`） | 全部无输出                           |
+| `tsc -p packages/desktop/tsconfig.host.json --noEmit`                                                                                                               | 0 error（基线 0）                    |
+| `tsc -p packages/desktop/tsconfig.preload.json --noEmit`                                                                                                            | 0 error（基线 0）                    |
+| `tsc -p packages/desktop/tsconfig.main.json --noEmit`                                                                                                               | 83 error（与第二轮基线一致，未增加） |
+| 死键复核 `grep -rnIF -f <373 键>`                                                                                                                                   | 全仓 0 命中（含两 locale 文件本身）  |
 
 刻意保留（有 grep 证据）：
 
@@ -185,15 +185,15 @@ npx tsx packages/services/test/accountFreeProviders.test.mts
 
 ## 最终验证结果（实测）
 
-| 命令 | 结果 |
-| --- | --- |
-| `pnpm typecheck` | 0 错误 |
-| `pnpm lint` | 0 错误（73 条既有警告） |
-| `pnpm architecture:check --changed` | OK，violations 0 / baseline 0 / new 0 |
-| CLI 11 个包按依赖顺序 `tsc` | 全部 0 错误 |
-| desktop `tsconfig.host.json` / `tsconfig.preload.json` | 0 / 0 错误 |
-| desktop `tsconfig.main.json` | 83 个**既有**错误（与本变更无关，未增加） |
-| `npx tsx packages/services/test/accountFreeProviders.test.mts` | 全部通过 |
+| 命令                                                           | 结果                                      |
+| -------------------------------------------------------------- | ----------------------------------------- |
+| `pnpm typecheck`                                               | 0 错误                                    |
+| `pnpm lint`                                                    | 0 错误（73 条既有警告）                   |
+| `pnpm architecture:check --changed`                            | OK，violations 0 / baseline 0 / new 0     |
+| CLI 11 个包按依赖顺序 `tsc`                                    | 全部 0 错误                               |
+| desktop `tsconfig.host.json` / `tsconfig.preload.json`         | 0 / 0 错误                                |
+| desktop `tsconfig.main.json`                                   | 83 个**既有**错误（与本变更无关，未增加） |
+| `npx tsx packages/services/test/accountFreeProviders.test.mts` | 全部通过                                  |
 
 ## 打包与构建期注意
 

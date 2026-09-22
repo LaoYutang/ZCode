@@ -48,4 +48,3 @@ export const palette = new Proxy({} as TuiLegacyPalette, {
     return [...LEGACY_PALETTE_KEYS];
   },
 }) as TuiLegacyPalette;
-

@@ -24,12 +24,7 @@ import {
   type ResumeWorkflowRunInput,
   type ResumeWorkflowRunOutput,
 } from "@zcode/contracts";
-import type {
-  ToolEntry,
-  ToolExecutionContext,
-  ToolHandler,
-  ToolHandlerFailure,
-} from "../types.js";
+import type { ToolEntry, ToolExecutionContext, ToolHandler, ToolHandlerFailure } from "../types.js";
 import { workflowRunNotFoundFailure } from "./workflow-run-introspection.js";
 
 const RESUME_WORKFLOW_RUN_TIMEOUT_MS = 15_000;
@@ -197,7 +192,8 @@ export const resumeWorkflowRunToolEntry: ToolEntry = {
   formatModelContent: formatResumeWorkflowRunModelContent,
   permission: {
     permission: "resumeWorkflowRun",
-    reason: "resumeWorkflowRun.runConfirmation: resuming continues executing a stopped workflow run",
+    reason:
+      "resumeWorkflowRun.runConfirmation: resuming continues executing a stopped workflow run",
     riskLevel: "low",
     sideEffectScope: "none",
     // resume 被

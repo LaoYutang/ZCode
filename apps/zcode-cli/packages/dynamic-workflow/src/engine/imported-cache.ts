@@ -113,7 +113,8 @@ export class ImportedActorState {
       sourceSessionId: this.candidate.transcriptSourceSessionId,
       messageCount: last.messageBoundary,
     };
-    if (this.candidate.resolvedModel !== undefined) seed.resolvedModel = this.candidate.resolvedModel;
+    if (this.candidate.resolvedModel !== undefined)
+      seed.resolvedModel = this.candidate.resolvedModel;
     return seed;
   }
 }

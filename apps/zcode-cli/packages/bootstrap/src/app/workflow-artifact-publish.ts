@@ -81,9 +81,7 @@ export async function executeArtifactPublish(
   const opts = artifactPublishOptions(request);
   const store = requireArtifactStore(deps, request);
   const payload =
-    request.op === "file"
-      ? await readFilePayload(deps, request, opts)
-      : markdownPayload(request);
+    request.op === "file" ? await readFilePayload(deps, request, opts) : markdownPayload(request);
   const written = await writePayload(store, request, payload);
   return {
     id: request.id,
@@ -157,7 +155,8 @@ function artifactPublishOptions(request: ArtifactPublishRequest): ArtifactPublis
     bag.description,
     ARTIFACT_CAPS.maxDescriptionLength,
   );
-  const contentType = request.op === "file" ? optionalContentType(request, bag.contentType) : undefined;
+  const contentType =
+    request.op === "file" ? optionalContentType(request, bag.contentType) : undefined;
   return {
     ...(title === undefined ? {} : { title }),
     ...(description === undefined ? {} : { description }),
@@ -325,7 +324,11 @@ async function readCappedBytes(
     if (isFileSystemPortError(cause)) {
       if (cause.code === "too_large") throw tooLarge(given, cap);
       // not_found / is_directory / not_file 都是"这里没有一个可发布的普通文件"。
-      if (cause.code === "not_found" || cause.code === "is_directory" || cause.code === "not_file") {
+      if (
+        cause.code === "not_found" ||
+        cause.code === "is_directory" ||
+        cause.code === "not_file"
+      ) {
         throw sourceMissing(given, cause);
       }
     }

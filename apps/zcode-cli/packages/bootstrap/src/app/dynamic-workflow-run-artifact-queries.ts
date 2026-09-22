@@ -16,7 +16,9 @@ import type { JournalStorePort, NodeRecord } from "@zcode/dynamic-workflow";
  * 只能靠能力探测接上。
  */
 interface ArtifactReadableJournal
-  extends JournalStorePort, Pick<DwfRunIntrospectionQueries, "listArtifactItems" | "listArtifactRows"> {}
+  extends
+    JournalStorePort,
+    Pick<DwfRunIntrospectionQueries, "listArtifactItems" | "listArtifactRows"> {}
 
 /**
  * journal 是否带产物读面。**刻意是 `supportsRunIntrospection` 的兄弟，而不是把它扩成六条。**
@@ -27,7 +29,9 @@ interface ArtifactReadableJournal
  * 继续把 `ListWorkflowRuns` / `GetWorkflowRun` 跑通，只是不提供产物。把它们并成一个探测，
  * 会让这类 journal 上两个早已工作的工具静默消失，而症状离成因极远。
  */
-export function supportsArtifactReads(journal: JournalStorePort): journal is ArtifactReadableJournal {
+export function supportsArtifactReads(
+  journal: JournalStorePort,
+): journal is ArtifactReadableJournal {
   const candidate = journal as Partial<DwfRunIntrospectionQueries>;
   return (
     typeof candidate.listArtifactItems === "function" &&

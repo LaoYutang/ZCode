@@ -1,0 +1,6 @@
+# 生成产物不参与格式化：`packages/core/src/tool/handlers/generated/bash-command-registry.ts`
+# 由 scripts/generate-bash-command-registry.mjs 确定性生成，文件头已注明「请勿手改」。
+# 它是 9 行紧凑输出（一行一个巨型字面量），oxfmt 会把它展开成十几万行；而 `registry:check`
+# 校验的是「与生成器输出逐字节一致」，两者无法同时满足。因此这里按生成器口径排除，
+# 需要改内容就改生成器再跑 `pnpm registry:generate`。
+packages/core/src/tool/handlers/generated/

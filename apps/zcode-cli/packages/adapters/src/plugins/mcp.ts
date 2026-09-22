@@ -168,10 +168,7 @@ function getUserConfigDefaults(manifest: PluginManifest): PluginOptionValues {
   return defaults;
 }
 
-function resolveMcpServerConfig(
-  server: unknown,
-  context: VariableContext,
-): McpServerConfig {
+function resolveMcpServerConfig(server: unknown, context: VariableContext): McpServerConfig {
   if (!isRecord(server)) throw new Error("MCP server config must be an object");
   const type = typeof server.type === "string" ? server.type : inferMcpType(server);
   if (!SUPPORTED_MCP_TYPES.has(type)) throw new Error(`Unsupported MCP transport: ${type}`);
@@ -372,7 +369,6 @@ function resolveTemplate(
       return envValue;
     }
     if (options.allowSensitive && ENVIRONMENT_VARIABLE_NAME_PATTERN.test(name)) {
-
       // token。只在敏感 sink 解析，避免 secret 被展开到 args、URL 或其它可见字段。
       const envValue = context.env[name];
       if (envValue === undefined)

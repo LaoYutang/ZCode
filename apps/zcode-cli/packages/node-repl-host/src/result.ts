@@ -27,7 +27,10 @@ function parseEmbeddedMcpResult(value: string): EmbeddedMcpResult | undefined {
     if (!Array.isArray(candidate.content)) return undefined;
     if (
       candidate.content.some(
-        (block) => !block || typeof block !== "object" || typeof (block as { type?: unknown }).type !== "string",
+        (block) =>
+          !block ||
+          typeof block !== "object" ||
+          typeof (block as { type?: unknown }).type !== "string",
       )
     ) {
       return undefined;
@@ -139,8 +142,7 @@ export function toMcpRunResult(run: NodeReplRunResult): CallToolResult {
             (image) =>
               !structuredContent.some(
                 (block) =>
-                  block.type === "image" &&
-                  (block as { data?: string }).data === image.base64,
+                  block.type === "image" && (block as { data?: string }).data === image.base64,
               ),
           )
           .map((image) => ({
@@ -167,7 +169,8 @@ export function toMcpRunResult(run: NodeReplRunResult): CallToolResult {
       ? {
           _meta: {
             ...responseMeta,
-            ...((run.images?.length ?? 0) > 0 || structuredContent.some((block) => block.type === "image")
+            ...((run.images?.length ?? 0) > 0 ||
+            structuredContent.some((block) => block.type === "image")
               ? { "zcode/nodeReplEmittedImage": true }
               : {}),
             ...(browserScreenshotContentIndices && browserScreenshotContentIndices.length > 0

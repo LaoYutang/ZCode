@@ -46,7 +46,6 @@ export const KIND_RANK: Record<OrderKind, number> = {
   seq: 1,
 };
 
-
 export interface ReducibleEdge {
   from: string;
   to: string;
@@ -87,8 +86,7 @@ const JUSTIFIED_BY: Partial<Record<OrderKind, ReadonlySet<OrderKind>>> = {
 };
 
 /** carry 边的底层 kind；缺席按 hard 处理（见 {@link ReducibleEdge.carryOf}）。 */
-const underlyingOf = (edge: ReducibleEdge): Exclude<OrderKind, "carry"> =>
-  edge.carryOf ?? "data";
+const underlyingOf = (edge: ReducibleEdge): Exclude<OrderKind, "carry"> => edge.carryOf ?? "data";
 
 /**
  * Drop edges a strong-enough path of surviving edges already implies — forward edges

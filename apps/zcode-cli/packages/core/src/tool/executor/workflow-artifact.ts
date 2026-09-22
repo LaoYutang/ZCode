@@ -76,7 +76,9 @@ export function buildWorkflowReportsManifestSection(
   const preview: string[] = [];
   for (const item of items) {
     if (preview.length >= WORKFLOW_NOTIFICATION_REPORTS_MAX_ITEMS) break;
-    preview.push(clip(serializeWorkflowArtifact(item) ?? "", WORKFLOW_NOTIFICATION_REPORT_ITEM_MAX_CHARS));
+    preview.push(
+      clip(serializeWorkflowArtifact(item) ?? "", WORKFLOW_NOTIFICATION_REPORT_ITEM_MAX_CHARS),
+    );
   }
   return { count: items.length, shown: preview.length, preview };
 }
@@ -89,4 +91,3 @@ const WORKFLOW_NOTIFICATION_REPORTS_MAX_ITEMS = 8;
 function clip(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
-

@@ -20,12 +20,7 @@ import {
   type ResolveWorkflowQuestionInput,
   type ResolveWorkflowQuestionOutput,
 } from "@zcode/contracts";
-import type {
-  ToolEntry,
-  ToolExecutionContext,
-  ToolHandler,
-  ToolHandlerFailure,
-} from "../types.js";
+import type { ToolEntry, ToolExecutionContext, ToolHandler, ToolHandlerFailure } from "../types.js";
 
 const RESOLVE_WORKFLOW_QUESTION_TIMEOUT_MS = 15_000;
 /** 输出只有一段确认文案，24k 绰绰有余（照 ResumeWorkflowRun）。 */
@@ -101,9 +96,7 @@ const resolveWorkflowQuestionHandler: ToolHandler = async (
   input,
   context: ToolExecutionContext,
 ) => {
-  const parsed = ResolveWorkflowQuestionInputSchema.parse(
-    input,
-  ) as ResolveWorkflowQuestionInput;
+  const parsed = ResolveWorkflowQuestionInputSchema.parse(input) as ResolveWorkflowQuestionInput;
 
   const port = context.dynamicWorkflowRunPort;
   if (port === undefined || typeof port.resolveQuestion !== "function") {

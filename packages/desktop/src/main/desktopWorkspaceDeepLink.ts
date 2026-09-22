@@ -4,7 +4,12 @@ import { isAbsolute, resolve } from "node:path";
 import { app, BrowserWindow, dialog } from "electron";
 import type { WebContents } from "electron";
 import { PlatformChannels, type Locale } from "@zcode/shared";
-import { extractShareImportCode, extractWorkspaceOpenPath, isShareImportUrl, isWorkspaceOpenUrl } from "./desktopDeepLinkUrl.js";
+import {
+  extractShareImportCode,
+  extractWorkspaceOpenPath,
+  isShareImportUrl,
+  isWorkspaceOpenUrl,
+} from "./desktopDeepLinkUrl.js";
 import { registerLinuxDeepLinkProtocol } from "./desktopLinuxDeepLinkRegistration.js";
 
 interface DeepLinkWorkspaceGateOptions {

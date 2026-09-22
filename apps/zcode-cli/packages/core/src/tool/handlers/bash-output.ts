@@ -160,9 +160,7 @@ export function createEmptyBashPerformanceTelemetry(
   });
 }
 
-function resolveBashCommandStatus(
-  result: ExecutionResult,
-): ToolCommandStatus {
+function resolveBashCommandStatus(result: ExecutionResult): ToolCommandStatus {
   if (result.timedOut) return "timed_out";
   if (result.cancelled) return "cancelled";
   if (result.status === "completed" && result.exitCode !== undefined && result.exitCode !== 0) {

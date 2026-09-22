@@ -138,7 +138,8 @@ export class InMemoryJournalStore implements JournalStorePort {
     // `where sequence > ?`。两侧共用同一份契约测，语义必须逐字相同。
     const after = opts?.afterSequence;
     const filtered = after === undefined ? list : list.filter((e) => e.sequence > after);
-    const limited = opts?.limit === undefined ? filtered : filtered.slice(0, Math.max(0, opts.limit));
+    const limited =
+      opts?.limit === undefined ? filtered : filtered.slice(0, Math.max(0, opts.limit));
     return limited.map(clone);
   }
 

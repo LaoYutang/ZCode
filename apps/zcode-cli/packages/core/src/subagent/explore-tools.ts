@@ -34,17 +34,21 @@ const EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY_SET = new Set<ExploreAgentAllowedT
   EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY,
 );
 
-export function buildExploreAllowedTools(options: {
-  embeddedSearchEnabled?: boolean;
-} = {}): readonly ExploreAgentAllowedTool[] {
+export function buildExploreAllowedTools(
+  options: {
+    embeddedSearchEnabled?: boolean;
+  } = {},
+): readonly ExploreAgentAllowedTool[] {
   return options.embeddedSearchEnabled
     ? EXPLORE_AGENT_EMBEDDED_SEARCH_ALLOWED_TOOLS
     : EXPLORE_AGENT_ALLOWED_TOOLS;
 }
 
-export function formatExploreAllowedToolsForAgentDescription(options: {
-  embeddedSearchEnabled?: boolean;
-} = {}): string {
+export function formatExploreAllowedToolsForAgentDescription(
+  options: {
+    embeddedSearchEnabled?: boolean;
+  } = {},
+): string {
   const allowedTools = buildExploreAllowedTools(options);
   const allowedToolSet = new Set(allowedTools);
   const prioritizedTools = EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY.filter((tool) =>

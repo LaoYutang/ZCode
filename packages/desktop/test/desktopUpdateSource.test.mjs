@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEV_APP_VERSION, resolveAppVersion, resolveReleaseTag } from "../scripts/build-metadata.mjs";
+import {
+  DEV_APP_VERSION,
+  resolveAppVersion,
+  resolveReleaseTag,
+} from "../scripts/build-metadata.mjs";
 import { resolveDesktopUpdateSource } from "../scripts/desktop-update-source.mjs";
 
 // 版本解析与更新源解析都是构建期决策，出错会直接产出错误产物（版本对不上、更新源指错），
@@ -30,8 +34,14 @@ test("版本以 tag 为来源：prerelease 后缀保留", () => {
 
 test("版本以 tag 为来源：CI 分支构建回退到 git 精确匹配探测", () => {
   const env = { GITHUB_REF_TYPE: "branch", GITHUB_REF_NAME: "main" };
-  assert.equal(resolveAppVersion(env, () => "v3.14.1"), "3.14.1");
-  assert.equal(resolveReleaseTag(env, () => "v3.14.1"), "v3.14.1");
+  assert.equal(
+    resolveAppVersion(env, () => "v3.14.1"),
+    "3.14.1",
+  );
+  assert.equal(
+    resolveReleaseTag(env, () => "v3.14.1"),
+    "v3.14.1",
+  );
 });
 
 test("版本以 tag 为来源：无 tag 时用开发占位版本", () => {

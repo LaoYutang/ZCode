@@ -1993,11 +1993,10 @@ export function createLocalServices(options: {
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
   });
   // 会话发布会上传到 ZCode 账号服务，无账号模式的构建不提供该能力。
-  const conversationShareService: IConversationShareServiceType = createUnsupportedConversationShareService(
-    {
+  const conversationShareService: IConversationShareServiceType =
+    createUnsupportedConversationShareService({
       message: "Conversation publishing requires the ZCode account service",
-    },
-  );
+    });
   // 注册链上的懒工厂（如 OffPeak）会各自创建 tasks-index sqlite repo；先收集到本数组，
   // services 集合建好后在 return 前统一登记进 sharedSqliteRepos 侧表
   const sqliteReposToClose: Array<{ close(): void }> = [];

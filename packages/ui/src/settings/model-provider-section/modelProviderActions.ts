@@ -47,10 +47,6 @@ export async function confirmAndDeleteModelProvider({
   }
 }
 
-export async function refreshModelProviderSection({
-  refresh,
-}: {
-  refresh: () => Promise<void>;
-}) {
+export async function refreshModelProviderSection({ refresh }: { refresh: () => Promise<void> }) {
   await refresh();
 }

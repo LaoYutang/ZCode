@@ -26,16 +26,10 @@
 // 对调用方是同一个业务事实（网关归一成 not found），把它们区分开只会告诉一个越权的调用方
 // 它猜对了哪一半。
 
-import type {
-  DynamicWorkflowRunArtifactBytes,
-  ToolArtifactStorePort,
-} from "@zcode/contracts";
+import type { DynamicWorkflowRunArtifactBytes, ToolArtifactStorePort } from "@zcode/contracts";
 import type { JournalStorePort } from "@zcode/dynamic-workflow";
 
-import {
-  artifactRowId,
-  supportsArtifactReads,
-} from "./dynamic-workflow-run-artifact-queries.js";
+import { artifactRowId, supportsArtifactReads } from "./dynamic-workflow-run-artifact-queries.js";
 
 interface WorkflowArtifactReadDeps {
   journal: JournalStorePort;

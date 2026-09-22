@@ -93,7 +93,6 @@ export class PermissionService {
     this.sessionRules = applyPermissionUpdates(this.sessionRules, updates);
   }
 
-
   checkPermission(
     context: PermissionContext,
     toolCapability?: PermissionToolCapability,
@@ -586,8 +585,7 @@ export class PermissionService {
   ): ResolvedPermissionCapability {
     return {
       allowedInPlanMode: toolCapability?.allowedInPlanMode ?? false,
-      alwaysAsk:
-        toolCapability?.permission?.alwaysAsk ?? toolCapability?.alwaysAsk ?? false,
+      alwaysAsk: toolCapability?.permission?.alwaysAsk ?? toolCapability?.alwaysAsk ?? false,
       readOnly: toolCapability?.readOnly ?? this.isReadOnlyTool(context.toolName),
       destructive: toolCapability?.destructive ?? this.isDestructiveTool(context.toolName),
       requiresUserInteraction:

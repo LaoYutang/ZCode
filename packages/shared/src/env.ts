@@ -94,9 +94,7 @@ export function isExternalUpdateInstallSource(
  * 是否仍从官方 manifest 取更新。远端强更闸只在官方源下生效：
  * 不接官方更新源的构建，官方不应有权阻止其启动。
  */
-export function usesOfficialUpdateSource(
-  source: ZCodeUpdateSource = ZCODE_UPDATE_SOURCE,
-): boolean {
+export function usesOfficialUpdateSource(source: ZCodeUpdateSource = ZCODE_UPDATE_SOURCE): boolean {
   return source === "zcode-manifest";
 }
 

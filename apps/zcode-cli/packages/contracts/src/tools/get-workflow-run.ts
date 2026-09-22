@@ -25,7 +25,9 @@ export const GetWorkflowRunInputSchema = z
     run_id: z
       .string()
       .min(1)
-      .describe("The workflow run ID to inspect (as returned by CreateWorkflow or ListWorkflowRuns)"),
+      .describe(
+        "The workflow run ID to inspect (as returned by CreateWorkflow or ListWorkflowRuns)",
+      ),
   })
   .strict();
 
@@ -198,7 +200,10 @@ export const GetWorkflowRunOutputSchema = WorkflowRunSummarySchema.extend({
    * 阶段表：声明序的已声明阶段，后面接上「进过但没声明」的那些。**脚本没声明阶段、也一个
    * 都没进过时整字段缺席**——那样的 run 没有阶段这回事，空数组读起来像「阶段表是空的」。
    */
-  phases: z.array(GetWorkflowRunPhaseSchema).max(GET_WORKFLOW_RUN_ROSTER_LIMITS.maxPhases).optional(),
+  phases: z
+    .array(GetWorkflowRunPhaseSchema)
+    .max(GET_WORKFLOW_RUN_ROSTER_LIMITS.maxPhases)
+    .optional(),
   /**
    * 子代理花名册，按铸造顺序。**恒在场**，一个 actor 都没有的 run 是空数组：与 `phases`
    * 不同，「这个 run 有几个子代理」永远是个有答案的问题，而 0 就是那个答案。

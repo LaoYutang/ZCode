@@ -36,11 +36,11 @@
 
 `packages/desktop/scripts/build-metadata.mjs` 的 `resolveAppVersion()` 是**唯一**的版本解析实现。其余需要版本的构建脚本必须 import 它，不得自行读取 `package.json`：
 
-| 消费方 | 用途 |
-| --- | --- |
-| `packages/desktop/scripts/build-metadata.mjs` | `appVersion` → `__ZCODE_VERSION__` define、`electron-builder.config.js` 的 `version`、`out/metadata/build-meta.json` |
-| `packages/desktop/scripts/build-windows-browser-import-helper.mjs` | Windows assembly manifest |
-| `scripts/prepare-prebuilds.mjs` | mock CDN 目录 `mock-cdn/releases/<version>` |
+| 消费方                                                             | 用途                                                                                                                 |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `packages/desktop/scripts/build-metadata.mjs`                      | `appVersion` → `__ZCODE_VERSION__` define、`electron-builder.config.js` 的 `version`、`out/metadata/build-meta.json` |
+| `packages/desktop/scripts/build-windows-browser-import-helper.mjs` | Windows assembly manifest                                                                                            |
+| `scripts/prepare-prebuilds.mjs`                                    | mock CDN 目录 `mock-cdn/releases/<version>`                                                                          |
 
 后两者必须与主链路同源：`prepare-prebuilds.mjs` 写入的目录名会被运行时 `desktopRuntimeEnv.ts` 用 `join(mockCdnDir, "releases", ZCODE_VERSION)` 反查，版本分歧会导致开发态远端运行时资产找不到。
 

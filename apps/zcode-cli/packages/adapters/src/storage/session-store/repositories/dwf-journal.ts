@@ -230,7 +230,6 @@ class SqliteDwfJournalStore implements JournalStorePort, DwfRunIntrospectionQuer
     return listRunsByParentSession(this.db, parentSessionId, limit);
   }
 
-
   putActor(record: ActorRecord): void {
     const now = Date.now();
     this.db
