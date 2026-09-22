@@ -59,7 +59,14 @@ export function isCronTask(task: CronTaskIdentity): boolean {
   return Boolean(task.cronAutomationId || task.automationId);
 }
 
-/** 判断一个 task/幻影行是否属于闲时任务（只看持久 meta 标记，UI 不反查 off-peak store）。 */
+/**
+ * 判断一个 task/幻影行是否属于闲时任务（只看持久 meta 标记，UI 不反查 off-peak store）。
+ *
+ * 闲时任务已不可新建，但历史任务仍可能命中：`off_peak_task_id` 持久在本地 tasks-index，
+ * `taskIndexRepo.rowToMeta` 以 meta_json 为准、列兜底读取，bootstrap 的
+ * `backfillOffPeakGroupMemberships` 也会按该列补系统分组归属。因此调用方必须保留闲时任务的
+ * 图标与分组渲染，不能按“已无闲时任务”移除。
+ */
 export function isOffPeakTask(task: Pick<ZCodeTaskMeta, "offPeakTaskId">): boolean {
   return Boolean(task.offPeakTaskId);
 }

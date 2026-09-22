@@ -191,8 +191,10 @@ export const mcpToolResultDisplayPayloadSchema = z
     description: z.string().min(1).max(MCP_TOOL_DISPLAY_MAX_DESCRIPTION_CHARS).optional(),
     /**
      * 官方 Server MCP 判定本次调用不可用时下发的结构化标识（额度耗尽 / 无 Coding Plan）。
-     * 只在 tool result 为 isError 且该 MCP 为官方来源时出现，UI 据此在输入框上方提示。
      * 与 code 同源：`@zcode/shared` 的 OFFICIAL_MCP_TOOL_ERROR_CODES。
+     *
+     * 账号能力移除后 agent 侧不再有产出方（官方 MCP 身份头注入已删除）；字段**保留**：
+     * strict schema 少一个键会让历史持久化行整块校验不过，与下面的冻结规则同因。
      */
     unavailable: z
       .object({ code: z.enum(OFFICIAL_MCP_TOOL_ERROR_CODES) })

@@ -22,8 +22,8 @@ export function createProviderRuntimeHeadersPort(
 ): NonNullable<ZCodeAppOptions["providerRuntimeHeadersPort"]> {
   return {
     shouldRefreshBeforeModelRequest() {
-      // Account 请求由绑定 Model 决定是否进入鉴权，不能把所有账号收窄到旧 Start ID。
-      // 普通 API 不进入此端口；Team/Individual 继续复用请求级鉴权合同。
+      // 是否进入鉴权由绑定 Model 决定（普通 API Key 不进入此端口）；
+      // 账号型（Start Plan / 闲时）请求已随账号能力移除，这里不再按账号收窄。
       return true;
     },
     async refreshBeforeModelRequest(input) {
@@ -40,7 +40,6 @@ export function createProviderRuntimeHeadersPort(
             workspace,
             modelSelection: { providerId: input.providerId, modelId: input.modelId },
             providerId: input.providerId,
-            ...(input.accountAccess ? { accountAccess: input.accountAccess } : {}),
             reason: input.reason,
           },
           zcodeProviderRuntimeHeadersResponseSchema,

@@ -1,4 +1,4 @@
-/* eslint-disable max-lines -- 模型菜单同时维护触发器、模型项、provider family 连接方式子菜单和焦点恢复，拆开会增加受控 Dropdown 状态同步成本。 */
+/* eslint-disable max-lines -- 模型菜单同时维护触发器、模型项、provider 子菜单和焦点恢复，拆开会增加受控 Dropdown 状态同步成本。 */
 import {
   Fragment,
   memo,
@@ -17,7 +17,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -26,7 +25,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.js";
 import {
   Tooltip,
   TooltipContent,
@@ -55,24 +53,10 @@ export interface ModelSelectGroupItem {
   supportsVisionInput?: boolean;
 }
 
-export interface ModelSelectConnectionOption {
-  key: string;
-  label: string;
-  badgeLabel?: string;
-  value: string;
-  providerId: string;
-  familyId: string;
-  mode: "oauth" | "apiKey";
-  disabled?: boolean;
-}
-
 export interface ModelSelectGroup {
   key: string;
   label: string;
   labelBadge?: string;
-  directItems?: boolean;
-  selectedOptionKey?: string;
-  connectionOptions?: ModelSelectConnectionOption[];
   items: ModelSelectGroupItem[];
 }
 
@@ -91,24 +75,20 @@ function shouldShowModelProviderLevel(modelGroups: readonly ModelSelectGroup[]):
   return modelGroups.length > 0;
 }
 
-function isFamilyConnectionGroup(
-  group: Pick<ModelSelectGroup, "connectionOptions" | "key" | "labelBadge">,
-): boolean {
-  return (
-    group.key.startsWith("family:") ||
-    Boolean(group.labelBadge?.trim()) ||
-    (group.connectionOptions?.length ?? 0) > 0
-  );
+/** 分组标签带徽标（如 API Key 连接方式）时，需要在分组之间补分隔线。
+ * 旧的 `family:*` 连接分组 key 已随账号套餐分组移除，不再作为判定条件。 */
+function hasModelGroupLabelBadge(group: Pick<ModelSelectGroup, "labelBadge">): boolean {
+  return Boolean(group.labelBadge?.trim());
 }
 
 function shouldRenderModelGroupSeparator(
-  previousGroup: Pick<ModelSelectGroup, "connectionOptions" | "key" | "labelBadge"> | undefined,
-  currentGroup: Pick<ModelSelectGroup, "connectionOptions" | "key" | "labelBadge">,
+  previousGroup: Pick<ModelSelectGroup, "labelBadge"> | undefined,
+  currentGroup: Pick<ModelSelectGroup, "labelBadge">,
 ): boolean {
   if (!previousGroup) {
     return false;
   }
-  return isFamilyConnectionGroup(previousGroup) || isFamilyConnectionGroup(currentGroup);
+  return hasModelGroupLabelBadge(previousGroup) || hasModelGroupLabelBadge(currentGroup);
 }
 
 function isModelSelectGroupSelected(
@@ -143,7 +123,6 @@ interface ModelConfigSelectProps {
   lockReasonMessage: string;
   isItemLocked: (candidateValue: string) => boolean;
   onValueChange: (value: string) => void;
-  onConnectionValueChange?: (option: ModelSelectConnectionOption) => void;
   disabled?: boolean;
   tooltipTitle?: string;
   guideTooltipTitle?: ReactNode;
@@ -194,7 +173,6 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
   lockReasonMessage,
   isItemLocked,
   onValueChange,
-  onConnectionValueChange,
   disabled,
   tooltipTitle,
   guideTooltipTitle,
@@ -402,71 +380,6 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
     [],
   );
 
-  const renderProviderConnectionHeader = useCallback(
-    (group: ModelSelectGroup) => {
-      const options = group.connectionOptions ?? [];
-      if (options.length > 0) {
-        const selectedOptionKey = group.selectedOptionKey ?? options[0]?.key;
-        const selectedConnection =
-          options.find((option) => option.key === selectedOptionKey) ?? options[0];
-        return (
-          <div className="flex min-h-8 items-center gap-2 px-2 py-1">
-            <span
-              className="min-w-0 flex-1 truncate text-left text-ui-sm font-medium text-foreground-subtlest"
-              title={group.label}
-            >
-              {group.label}
-            </span>
-            <Select
-              value={selectedOptionKey}
-              onValueChange={(nextKey) => {
-                const option = options.find((candidate) => candidate.key === nextKey);
-                if (!option) {
-                  return;
-                }
-                // 切换连接方式后需要保留外层模型菜单，方便用户继续选择刷新后的模型。
-                onConnectionValueChange?.(option);
-              }}
-            >
-              <SelectTrigger
-                size="xs"
-                variant="outline"
-                className="min-w-0 shrink-0 gap-0.5 rounded-full pr-1.5 text-ui-sm text-foreground-subtle [&_svg]:size-3"
-                data-testid={testId(TID_CHAT_MODEL_SELECT_GROUP, group.key)}
-                data-model-provider-key={group.key}
-                onPointerDown={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
-              >
-                <span className="max-w-28 truncate">
-                  {selectedConnection?.badgeLabel ?? selectedConnection?.label ?? group.label}
-                </span>
-              </SelectTrigger>
-              <SelectContent
-                align="end"
-                position="popper"
-                className="w-max min-w-40 max-w-72"
-                onCloseAutoFocus={(event) => event.preventDefault()}
-              >
-                {options.map((option) => (
-                  <SelectItem
-                    key={option.key}
-                    value={option.key}
-                    data-model-connection-option={option.key}
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        );
-      }
-
-      return null;
-    },
-    [onConnectionValueChange],
-  );
-
   const renderedFooterActions = useMemo<ModelSelectFooterAction[]>(() => {
     const actions = [...footerActions];
     if (showManageModelsAction && manageModelsLabel) {
@@ -582,27 +495,6 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
                 ) ? (
                   <DropdownMenuSeparator />
                 ) : null;
-                if (group.directItems) {
-                  return (
-                    <Fragment key={group.key}>
-                      {groupSeparator}
-                      <div>
-                        <DropdownMenuLabel
-                          className="flex min-h-8 items-center px-2 py-1"
-                          data-testid={testId(TID_CHAT_MODEL_SELECT_GROUP, group.key)}
-                          data-model-provider-key={group.key}
-                        >
-                          {renderGroupLabel(group)}
-                        </DropdownMenuLabel>
-                        {renderProviderConnectionHeader(group)}
-                        <DropdownMenuRadioGroup value={normalizedValue}>
-                          {group.items.map((item) => renderModelItem(item))}
-                        </DropdownMenuRadioGroup>
-                      </div>
-                    </Fragment>
-                  );
-                }
-
                 const groupSelected = isModelSelectGroupSelected(group, normalizedValue);
                 return (
                   <Fragment key={group.key}>

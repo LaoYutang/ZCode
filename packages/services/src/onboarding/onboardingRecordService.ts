@@ -47,8 +47,11 @@ async function readRecordFile(filePath: string): Promise<OnboardingRecordFile | 
 }
 
 export function createOnboardingRecordService(
-  options: CreateOnboardingRecordServiceOptions,
+  options: CreateOnboardingRecordServiceOptions = {},
 ): IOnboardingRecordService {
+  // 无登录态时 userId 恒为 null；调用点不各自判空。
+  const loadUserId = (): Promise<string | null> =>
+    options.loadUserId?.() ?? Promise.resolve(null);
   // 串行化写：引导保存与并发触发判定同时发生时不丢条目。
   let writeQueue: Promise<unknown> = Promise.resolve();
   const enqueueWrite = <T>(task: () => Promise<T>): Promise<T> => {
@@ -59,7 +62,7 @@ export function createOnboardingRecordService(
 
   return {
     async appendRecord(deviceMid: string, entry: OnboardingRecordEntryInput): Promise<void> {
-      const userId = await options.loadUserId();
+      const userId = await loadUserId();
       await enqueueWrite(async () => {
         const filePath = getRecordFile();
         const existing = await readRecordFile(filePath);
@@ -97,7 +100,7 @@ export function createOnboardingRecordService(
     },
 
     async claimAnonymousRecord(): Promise<void> {
-      const userId = await options.loadUserId();
+      const userId = await loadUserId();
       if (!userId) return;
       await enqueueWrite(async () => {
         const filePath = getRecordFile();
@@ -119,14 +122,14 @@ export function createOnboardingRecordService(
     },
 
     async shouldOnboard(): Promise<boolean> {
-      const userId = await options.loadUserId();
+      const userId = await loadUserId();
       const file = await readRecordFile(getRecordFile());
       if (!file) return true;
       return !file.entries.some((entry) => entry.userId === userId);
     },
 
     async getLatestEntry(): Promise<OnboardingRecordEntry | null> {
-      const userId = await options.loadUserId();
+      const userId = await loadUserId();
       const file = await readRecordFile(getRecordFile());
       if (!file) return null;
       let latest: OnboardingRecordEntry | undefined;
@@ -137,7 +140,7 @@ export function createOnboardingRecordService(
     },
 
     async syncSettingsFromRecord(): Promise<OnboardingSettingsSyncPatch | null> {
-      const userId = await options.loadUserId();
+      const userId = await loadUserId();
       const file = await readRecordFile(getRecordFile());
       if (!file) return null;
       // append 是覆盖语义，正常每 userId 至多一条；兼容旧版本的重复追加文件时取最后一条。
@@ -162,7 +165,7 @@ export function createOnboardingRecordService(
         Pick<OnboardingRecordEntryInput, "memoryEnabled" | "proactiveSuggestionsEnabled">
       >,
     ): Promise<void> {
-      const userId = await options.loadUserId();
+      const userId = await loadUserId();
       await enqueueWrite(async () => {
         const filePath = getRecordFile();
         const file = await readRecordFile(filePath);

@@ -16,7 +16,6 @@ import {
   readHeadlessRuntimeFacts,
   waitForHeadlessWorkflowSettle,
 } from "./headless-workflow.js";
-import { runLoginCommand, runLogoutCommand } from "./login-command.js";
 import { resolveResumeSession } from "./resume.js";
 import { readRuntimeEventSubscriber } from "./runtime-event-subscriber.js";
 import {
@@ -85,20 +84,6 @@ export const runPrompt = async (
   }
   if (slashCommand?.type === "known" && slashCommand.name === "skill" && !slashCommand.skillName) {
     return await runSkillsCommand(ctx, options, deps, []);
-  }
-  if (slashCommand?.type === "known" && slashCommand.name === "login") {
-    if (slashCommand.args.length > 0) {
-      ctx.stderr.write("Usage: /login\n");
-      return 1;
-    }
-    return await runLoginCommand(ctx, options, deps, false);
-  }
-  if (slashCommand?.type === "known" && slashCommand.name === "logout") {
-    if (slashCommand.args.length > 0) {
-      ctx.stderr.write("Usage: /logout\n");
-      return 1;
-    }
-    return await runLogoutCommand(ctx, options, deps);
   }
 
   const runtimePrompt =
@@ -203,7 +188,6 @@ export const runPrompt = async (
         ? {}
         : {
             standalone: {
-              ...createCliProviderRefreshReporter(ctx.stderr),
               ...(deps.userConfigPath ? { legacyCliUserConfigFilePath: deps.userConfigPath } : {}),
             },
           },
@@ -219,11 +203,6 @@ export const runPrompt = async (
       permissionBroker: createHeadlessPermissionBroker(),
       providerRegistry: providerRegistryRuntime.runtime.registryService,
       configuredDefaultModelSelection: providerRegistryRuntime.configuredDefaultModelSelection,
-      ...(providerRegistryRuntime.providerRuntimeHeadersPort
-        ? {
-            providerRuntimeHeadersPort: providerRegistryRuntime.providerRuntimeHeadersPort,
-          }
-        : {}),
       resume: sessionId !== undefined,
       runtimeConfig: {
         ...(mode ? { mode } : {}),
@@ -637,4 +616,3 @@ function writeHeadlessWorkspaceHookTrustDiagnostic(
     ].join("\n") + "\n",
   );
 }
-import { createCliProviderRefreshReporter } from "./provider-runtime-env.js";

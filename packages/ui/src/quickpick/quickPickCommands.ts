@@ -5,8 +5,6 @@ export type QuickPickCommandIcon =
   | "diff"
   | "feedback"
   | "folder"
-  | "login"
-  | "logout"
   | "message"
   | "mcp"
   | "settings"
@@ -55,8 +53,8 @@ interface QuickPickCommandHandlers {
   openFeedback: () => void | Promise<void>;
   openCommunity: () => void | Promise<void>;
   openProductDocs: () => void | Promise<void>;
-  login?: () => void | Promise<void>;
-  logout?: () => void | Promise<void>;
+  /** 打开「添加供应商」引导页；应用没有登录/登出动作。 */
+  addProvider?: () => void | Promise<void>;
   toggleSidebar: () => void;
   toggleTerminal: () => void;
   togglePreview: () => void;
@@ -69,7 +67,6 @@ interface CreateQuickPickCommandsOptions {
   allowOpenWorkspace: boolean;
   canOpenCommunity: boolean;
   isSidebarVisible: boolean;
-  isLoggedIn: boolean;
   supportsEmbeddedBrowser?: boolean;
   supportsTerminal?: boolean;
   supportsReview?: boolean;
@@ -87,7 +84,6 @@ export function createQuickPickCommands({
   allowOpenWorkspace,
   canOpenCommunity,
   isSidebarVisible,
-  isLoggedIn,
   supportsEmbeddedBrowser = true,
   supportsTerminal = true,
   supportsReview = true,
@@ -268,24 +264,14 @@ export function createQuickPickCommands({
     run: handlers.openProductDocs,
   });
 
-  if (isLoggedIn && handlers.logout) {
+  if (handlers.addProvider) {
     commands.push({
-      id: "logout",
+      id: "add-provider",
       sectionId: "app",
-      titleId: "quickPick.command.logout",
-      icon: "logout",
-      keywords: ["disconnect", "logout", "sign out", "断开连接", "登出"],
-      run: handlers.logout,
-    });
-  } else if (!isLoggedIn && handlers.login) {
-    commands.push({
-      id: "login",
-      sectionId: "app",
-      titleId: "quickPick.command.login",
-      icon: "login",
-      // 命令面板的账号动作对用户表达为“连接/断开连接”，搜索词也要同步。
-      keywords: ["connect", "login", "sign in", "连接", "登录"],
-      run: handlers.login,
+      titleId: "quickPick.command.addProvider",
+      icon: "settings",
+      keywords: ["provider", "api key", "connect", "添加供应商", "供应商", "API Key"],
+      run: handlers.addProvider,
     });
   }
 

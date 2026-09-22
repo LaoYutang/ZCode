@@ -365,6 +365,7 @@ export const MemoTaskItem = memo(function TaskListItem({
   const isTaskCron = isCronTask(task);
   // 月亮身份改为持久 meta 标记判断；off-peak store 反查在任务被删除后会丢失
   // 会话溯源，且让每一行多背一个全局 store 订阅。
+  // 闲时任务已不可新建，但历史任务的 off_peak_task_id 仍在 tasks-index 里，故保留该渲染分支。
   const isTaskOffPeak = isOffPeakTask(task);
   const showTimelineIdleIndicator =
     variant === "timeline" && leadingIndicator === "none" && !isPinned;

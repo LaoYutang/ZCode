@@ -5,13 +5,11 @@ import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
-import type { PanelImperativeHandle } from "react-resizable-panels";
 
 import { TID_APP_HEADER } from "@zcode/shared";
 // 保活：workspace tab 真正关闭时，按 workspaceKey 回收 side pane terminal 的常驻 PTY/xterm。
 // 对称下侧 Terminal.tsx 的 openWorkspaceKeys 回收。
 import { sidePaneTerminalSessionRegistry } from "@/terminal/sidePaneTerminalSessionRegistry.js";
-import { V4ChatPane } from "@/v4/V4ChatPane.js";
 import { V4WorkspaceChatArea } from "@/v4/V4WorkspaceChatArea.js";
 import {
   V4SplitPaneEntryProvider,
@@ -65,7 +63,6 @@ import {
   resolveWorkspaceShellWindowChromeClass,
 } from "@/app-shell/workspaceShellWindowChrome.js";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable.js";
 import { toast } from "@/components/ui/toast.js";
 import { getGitDirtyFileCount } from "@/git-branch-switcher/display.js";
@@ -203,9 +200,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   onSelectRemoteProject,
   onCancelRemoteProject,
   onReconnectRemoteWorkspace,
-  onLogout,
-  onLogin,
-  user,
   reconnectingRemoteWorkspaceKeys,
   remoteWorkspaceErrorByWorkspaceKey,
   reconnectingRemoteWorkspaceLogsByWorkspaceKey = EMPTY_RECONNECTING_REMOTE_WORKSPACE_LOGS_BY_WORKSPACE_KEY,
@@ -215,7 +209,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   onOpenWorkspace,
   onOpenFolderFromWorkspaceMenu,
   onOpenRemoteWorkspace,
-  onCreateScratchWorkspace,
+  onCreateScratchWorkspace: _onCreateScratchWorkspace,
   allowOpenWorkspace = true,
   allowRemoteWorkspace = true,
   remoteWorkspaceSessions = EMPTY_REMOTE_WORKSPACE_SESSIONS,
@@ -271,7 +265,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   browserRestoreUrls,
   taskNativeSessionLogFile,
   taskSessionFile,
-  testMessages,
+  testMessages: _testMessages,
   conversationFindActiveIndex,
   conversationFindNavigationRequestId,
   conversationFindQuery,
@@ -299,7 +293,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleToggleTerminal,
   handleToggleBrowser,
   handleOpenBrowserTab,
-  handleOpenTreemapping,
+  handleOpenTreemapping: _handleOpenTreemapping,
   handleOpenWhiteboard,
   handleOpenDeveloperTools,
   handleOpenTerminalTab,
@@ -1580,9 +1574,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     reconnectingRemoteWorkspaceLogsByWorkspaceKey={
                       reconnectingRemoteWorkspaceLogsByWorkspaceKey
                     }
-                    onLogout={onLogout}
-                    onLogin={onLogin}
-                    user={user}
                     isDesktop={isDesktop}
                     isMacDesktop={isMacDesktop}
                     isWindowsDesktop={isWindowsDesktop}
@@ -1708,7 +1699,6 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           activeTaskChangeSummary={activeTaskChangeSummary}
                           hasUpdateReady={hasUpdateStatusButton}
                           activeTaskId={activeTaskId}
-                          user={user}
                           activeTraceId={activeTraceId}
                           activeSessionId={activeSessionId}
                           activeTaskProvider={activeTaskProvider}

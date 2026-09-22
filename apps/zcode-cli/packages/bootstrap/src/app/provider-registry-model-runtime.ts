@@ -76,16 +76,9 @@ export class ApiProviderModelRuntime {
       modelId: registryModel.modelId,
       providerConfig: provider.config,
       modelConfig: config,
-      ...(provider.config.access.type === "zhipu-account" &&
-      provider.config.access.mode === "off-peak"
-        ? {
-            requestDependencies: {
-              requestAuth: {
-                source: target.requestDependencies?.requestAuth?.source,
-              },
-            },
-          }
-        : {}),
+      // 执行作用域鉴权材料（v4 modelExecution.requestAuth）随 createModel 绑定到本次执行。
+      // 账号型（Start Plan / 闲时）鉴权随账号能力移除，不再是这里的门禁条件。
+      ...(target.requestDependencies ? { requestDependencies: target.requestDependencies } : {}),
       options: {
         reasoningLevel: normalReasoningLevel,
       },

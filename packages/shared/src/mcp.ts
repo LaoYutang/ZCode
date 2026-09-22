@@ -120,6 +120,7 @@ export interface ZCodeMcpServer {
   lastConnected?: Date;
   error?: string;
   failureKind?: McpServerFailureKind;
+  /** 冻结兼容字段：官方 MCP 身份头注入已随账号能力移除，本 build 无生产者（恒为 undefined）；保留给历史持久化数据与既有客户端解析。 */
   serverRequestId?: string;
   toolCount?: number;
   authorization?: {

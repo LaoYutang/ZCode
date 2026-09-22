@@ -1,32 +1,25 @@
-import { useEffect, useMemo } from "react";
-import type { ICodingPlanSubscriptionService } from "@zcode/services";
+import { useMemo } from "react";
 import {
-  useDynamicWorkflowAvailabilityStore,
-  type DynamicWorkflowAvailabilitySnapshot,
-} from "@/store/dynamicWorkflowAvailabilityStore.js";
+  resolveDynamicWorkflowClientConfig,
+  type DynamicWorkflowClientConfig,
+} from "@zcode/shared";
 
-/**
- * 读动态工作流灰度快照。
- * 只读，不触发请求：取数由 Root 里的 loader 唯一负责。消费方（自动化页、run 面板）可能位于
- * 工作区级 ServiceProvider 内（远程 Host 的 accessor），让它们各自取数会把 app 级那一份覆盖掉。
- */
-export function useDynamicWorkflowAvailability(): DynamicWorkflowAvailabilitySnapshot {
-  // 逐字段订阅：返回对象字面量的 selector 每次都是新引用，useSyncExternalStore 会判定为变化。
-  const status = useDynamicWorkflowAvailabilityStore((state) => state.status);
-  const enabled = useDynamicWorkflowAvailabilityStore((state) => state.enabled);
-  const config = useDynamicWorkflowAvailabilityStore((state) => state.config);
-  return useMemo(() => ({ status, enabled, config }), [config, enabled, status]);
+export interface DynamicWorkflowAvailabilitySnapshot {
+  /** 未知即不提供；入口宁可晚半拍出现也不闪一下再收起。 */
+  readonly enabled: boolean;
+  readonly config: DynamicWorkflowClientConfig;
 }
 
 /**
- * app 会话级取数，挂在 Root 里一次。service 换了（手机 `/remote` 完成工作区桥接）会重试，
- * 取数与失败重试的规则见 dynamicWorkflowAvailabilityStore。
+ * 动态工作流灰度快照。
+ *
+ * 账号形态下这份快照来自订阅服务读取的远端 `configs.dynamicWorkflow`，随登录一并删除。
+ * 无账号形态下 renderer 没有账号无关的灰度读取通道：Host 只按进程环境变量裁决，
+ * 再经 `workspace/updateDynamicWorkflowPolicy` 告知 CLI，不向 renderer 发布该事实。
+ * 因此这里按 shared 的 fail-closed 缺省（disabled）取值，入口跟随缺省关闭。
+ * Host 将来若发布读取通道（例如把它并入 client config 快照），只需替换这里的取值。
  */
-export function useDynamicWorkflowAvailabilityLoader(
-  service: ICodingPlanSubscriptionService,
-): void {
-  const ensureLoaded = useDynamicWorkflowAvailabilityStore((state) => state.ensureLoaded);
-  useEffect(() => {
-    void ensureLoaded(service);
-  }, [ensureLoaded, service]);
+export function useDynamicWorkflowAvailability(): DynamicWorkflowAvailabilitySnapshot {
+  const config = useMemo(() => resolveDynamicWorkflowClientConfig({ remote: undefined }), []);
+  return useMemo(() => ({ enabled: config.enabled, config }), [config]);
 }

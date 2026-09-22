@@ -1,4 +1,7 @@
-import type { ForceUpdateConfig } from "./coding-plan-subscription.js";
+/** 远端强更配置：只声明触发强更所需的最小版本。 */
+export interface ForceUpdateConfig {
+  minimalVersion: string;
+}
 
 export interface ForceUpdateRequirement {
   currentVersion: string;

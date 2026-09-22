@@ -133,7 +133,7 @@ export class ConversationSharePreviewClient {
     this.diagnostics = options.diagnostics ?? DEFAULT_DIAGNOSTICS;
   }
 
-  async getPreview(shareCode: string, accessToken?: string): Promise<ConversationSharePreview> {
+  async getPreview(shareCode: string): Promise<ConversationSharePreview> {
     if (!isSafeConversationShareCode(shareCode)) {
       throw new ConversationSharePreviewClientError({
         kind: "invalid_contract",
@@ -141,22 +141,19 @@ export class ConversationSharePreviewClient {
       });
     }
 
-    const headers = accessToken?.trim()
-      ? { Authorization: `Bearer ${accessToken.trim()}` }
-      : undefined;
-    const authenticated = headers !== undefined;
+    // 无账号模式：预览请求一律匿名。公开分享匿名可读；私密分享由服务端按 401 /
+    // 业务码 3213 拒绝，页面据此渲染「不可访问」。
     const requestTarget = `${this.baseUrl}/shares/<redacted>/preview`;
     this.diagnostics.info("preview_request_started", {
       requestTarget,
       pageOrigin: globalThis.location?.origin ?? "unavailable",
-      authenticated,
       shareCodeLength: shareCode.length,
     });
     let response: Response;
     try {
       response = await this.fetchImpl(
         `${this.baseUrl}/shares/${encodeURIComponent(shareCode)}/preview`,
-        { method: "GET", ...(headers ? { headers } : {}) },
+        { method: "GET" },
       );
     } catch (error) {
       const errorName = error instanceof Error ? error.name : typeof error;
@@ -166,7 +163,6 @@ export class ConversationSharePreviewClient {
         .replaceAll(encodeURIComponent(shareCode), "<redacted>");
       this.diagnostics.warn("preview_request_failed", {
         requestTarget,
-        authenticated,
         errorName,
         errorMessage,
       });
@@ -179,7 +175,6 @@ export class ConversationSharePreviewClient {
 
     this.diagnostics.info("preview_response_received", {
       requestTarget,
-      authenticated,
       status: response.status,
       ok: response.ok,
       redirected: response.redirected,

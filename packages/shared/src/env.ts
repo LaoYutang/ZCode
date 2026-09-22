@@ -141,3 +141,6 @@ export const ZCODE_ARMS_RUM_ENDPOINT =
 export function mapZCodeEnvToArmsRumEnv(runtimeEnv: ZCodeRuntimeEnv): ArmsRumEnv {
   return runtimeEnv !== "development" && ZCODE_ENV === "production" ? "prod" : "local";
 }
+
+/** Host 在 spawn 时注入的真实 workspace identity；只用于隔离/审计，不用于文件执行。 */
+export const ZCODE_WORKSPACE_IDENTITY_ENV = "ZCODE_WORKSPACE_IDENTITY";

@@ -1,5 +1,7 @@
 // 0020 可能以不带档位的 assistant 回填会话选择；只能给迁移后未动过的会话补同模型 user 档位。
 // 本表冻结 0020/0021 的身份规则，不引用实时目录，也不改旧 migration 的内容或 checksum。
+// 注意：identity 表里的 `account:*` provider id 在当前构建中已不存在（账号与登录能力已移除，
+// 供应商只来自用户个人配置），因此本迁移改写的选择会解析为不可用；SQL 保持冻结以便历史重放。
 const officialProviders = [
   "account:zai-start-plan",
   "account:bigmodel-start-plan",

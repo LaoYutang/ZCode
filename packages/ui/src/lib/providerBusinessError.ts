@@ -1,20 +1,18 @@
 /**
- * zcode-plan / Coding Plan 业务错误码与前端处理约定。
+ * 上游 provider 业务错误码与前端处理约定。
  *
  * | 场景           | code | HTTP | 前端处理 |
  * |----------------|------|------|----------|
- * | JWT 缺失/失效  | 1006 | 200  | 跳登录或重新授权 |
+ * | 凭据缺失/失效  | 1006 | 200  | 提示重新填写 provider 凭据 |
  * | 配额不足       | 1005 | 200  | 禁用入口，刷新配额 |
- * | 模型不可用     | 3006 | 400  | 切换到 Built-in Provider 中的其他模型 |
+ * | 模型不可用     | 3006 | 400  | 切换到其他 provider 的模型 |
  * | 参数错误       | 3001 | 400  | 检查请求体 |
  * | 安全校验拒绝   | 3007 | 403  | 客户端无法完成安全校验，提示联系支持 |
- * | 模型并发上限   | 3010 | 429  | Start Plan 下走升级横幅 |
+ * | 模型并发上限   | 3010 | 429  | 提示并发上限 |
  * | 请求过频       | 3002/429 | 429 | 限流提示，稍后重试 |
- * | 闲时票据不可用 | 3102 | 400  | 单段运行时间到顶，提示新建闲时任务续跑 |
+ * | 票据不可用     | 3102 | 400  | 当前运行段到顶，提示重新发起 |
  * | 上游 HTTP 异常 | 2007 | 500  | 可重试；刷新配额，勿本地扣额度 |
  */
-import { isOffPeakTicketExpiredError } from "@zcode/shared";
-
 const PROVIDER_BUSINESS_ERROR_CODES = [
   "1006",
   "1005",
@@ -235,22 +233,6 @@ export function resolveStartPlanConcurrentLimitBannerReason(
 /** 与 core `model-errors.ts` 中 anomaly guard 文案保持一致。 */
 export const SUSPICIOUS_EMPTY_MODEL_RESULT_MESSAGE =
   "Model returned no text, no tool calls, and no usage before completing the turn.";
-
-/**
- * 闲时票据不可用（上游 3102：票据失效或过期）。
- * 适配层会把该业务码包成 `off-peak-ticket-expired: <上游原文>` 落到 turn 错误里，
- * 外层 code 被压成 PROVIDER_BUSINESS_ERROR 等包装码时靠稳定标记兜底，
- * 否则横幅会把 "off peak ticket is invaliad or expired" 原文直接怼给用户。
- */
-export function resolveOffPeakTicketExpiredBusinessCode(
-  code: string | undefined,
-  message: string | undefined,
-): "3102" | undefined {
-  if (code?.trim() === "3102") {
-    return "3102";
-  }
-  return isOffPeakTicketExpiredError(message) ? "3102" : undefined;
-}
 
 export function isSuspiciousEmptyModelResultMessage(message: string | undefined): boolean {
   if (!message) {

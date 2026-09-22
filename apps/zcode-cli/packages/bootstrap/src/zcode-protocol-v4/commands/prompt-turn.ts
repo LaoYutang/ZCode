@@ -94,7 +94,7 @@ export async function startPromptTurn(
   );
   if (activeAutomationId) record.activeAutomationId = activeAutomationId;
   if (activeOffPeakTaskId) {
-    // 闲时派发轮同型标记，供 offpeak-port 在工具执行前拒绝递归 OffPeakCreate。
+    // 闲时派发轮标记：只用于本轮工具 denylist（隐藏 SendMessage / Workflow）。
     record.activeOffPeakTaskId = activeOffPeakTaskId;
   }
 
@@ -182,7 +182,7 @@ function clearPromptRecordState(
   previousOffPeakTaskId: string | undefined,
 ): void {
   record.activeAutomationId = previousAutomationId;
-  // 闲时轮身份与 automation 同规则随 turn 还原，防止跨轮残留误拒 OffPeakCreate。
+  // 闲时轮身份与 automation 同规则随 turn 还原，防止跨轮残留沿用闲时轮工具 denylist。
   record.activeOffPeakTaskId = previousOffPeakTaskId;
 }
 
@@ -197,8 +197,7 @@ function buildTurnToolDisallowlist(
     for (const toolName of AUTOMATION_MUTATION_TOOL_NAMES) tools.add(toolName);
   }
   if (activeOffPeakTaskId) {
-    // 闲时派发轮隐藏 OffPeakCreate（防递归自我派生）；OffPeakList 只读保留。
-    // automation 轮不加此项——cron 轮放行 OffPeakCreate（定时派生闲时任务）。
+    // 闲时派发轮隐藏 SendMessage / Workflow（会在本轮 modelExecution 之外重启子 Agent）。
     for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) tools.add(toolName);
   }
   return tools.size > 0 ? [...tools] : undefined;
@@ -247,8 +246,8 @@ export function turnBackgroundAttributionOf(params: {
 
 const AUTOMATION_INPUT_ID_PREFIX = "automation-";
 const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate", "CronDelete"] as const;
-// 独立常量，绝不并入 AUTOMATION_MUTATION_TOOL_NAMES（cron 轮放行 OffPeakCreate）。
+// 独立常量，绝不并入 AUTOMATION_MUTATION_TOOL_NAMES（cron 轮语义不同）。
 // 与 core turn-loop-state 同值——闲时轮同时隐藏 SendMessage / Workflow（两者会在本轮
-// modelExecution 之外重启子 Agent）。
+// modelExecution 之外重启子 Agent）。OffPeakCreate 已随闲时任务移除，不再列入。
 const OFF_PEAK_INPUT_ID_PREFIX = "offpeak-";
-const OFF_PEAK_MUTATION_TOOL_NAMES = ["OffPeakCreate", "SendMessage", "Workflow"] as const;
+const OFF_PEAK_MUTATION_TOOL_NAMES = ["SendMessage", "Workflow"] as const;

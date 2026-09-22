@@ -129,7 +129,7 @@ for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as cons
       });
       assert.equal(await readFile(path, "utf8"), content);
     } finally {
-      service.disposeAll();
+      // IZCodeTaskService 未声明 wrapper 级 dispose；桩依赖无副作用，无需额外清理。
       taskIndexRepo.close();
       setDataBaseDir(null);
       await rm(dir, { recursive: true, force: true });

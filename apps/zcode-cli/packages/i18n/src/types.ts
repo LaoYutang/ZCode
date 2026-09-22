@@ -40,57 +40,11 @@ export interface TuiCopy {
     restorePreviousInputFailed: string;
     typePrompt: string;
   };
+  /** 没有可选模型时的引导；无账号模式只指向「配置供应商」，不再有登录入口。 */
   loginRequired: {
     help: string;
     message: string;
     status: string;
-    title: string;
-  };
-  loginSetup: {
-    emptyMessage: string;
-    help: string;
-    options: {
-      bigmodelApiKey: {
-        inputPrimary: string;
-        inputSecondary: string;
-        primary: string;
-        secondary: string;
-      };
-      bigmodelOauth: {
-        pendingPrimary: string;
-        pendingSecondary: string;
-        primary: string;
-        secondary: string;
-      };
-      zaiApiKey: {
-        inputPrimary: string;
-        inputSecondary: string;
-        primary: string;
-        secondary: string;
-      };
-      zaiOauth: {
-        pendingPrimary: string;
-        pendingSecondary: string;
-        primary: string;
-        secondary: string;
-      };
-    };
-    pending: {
-      cancelStatus: string;
-      help: string;
-      status: string;
-    };
-    input: {
-      cancelStatus: string;
-      clearStatus: string;
-      emptyStatus: string;
-      help: string;
-      placeholder: string;
-      status: string;
-      submitStatus: string;
-    };
-    prompt: string;
-    response: string;
     title: string;
   };
   model: {

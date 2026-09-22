@@ -1,5 +1,5 @@
 import type { BrowserWindow } from "electron";
-import type { ExternalWorkspaceOpenDialogCopy } from "./desktopOAuthDeepLink.js";
+import type { ExternalWorkspaceOpenDialogCopy } from "./desktopWorkspaceDeepLink.js";
 import {
   extractDeepLinkUrlFromArgs,
   extractDeepLinkUrlFromSingleInstanceData,

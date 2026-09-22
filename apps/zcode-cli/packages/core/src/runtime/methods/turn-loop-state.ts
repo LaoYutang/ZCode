@@ -24,14 +24,18 @@ export const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate", "Cron
 const AUTOMATION_QUERY_ID_PREFIX = "automation-";
 /**
  * 闲时派发轮隐藏的工具；OffPeakList 只读保留。
- * - OffPeakCreate：防止闲时任务递归自我派生、无限调度。
  * - SendMessage / Workflow：会在闲时 turn 的 modelExecution 之外重新启动子 Agent（SendMessage 续跑
  *   已完成子 Agent、Workflow 派生脚本子会话），按父会话常驻选择建模型。
  *
- * 独立常量，绝不并入 AUTOMATION_MUTATION_TOOL_NAMES——cron automation turn 明确放行
- * OffPeakCreate（定时派生闲时任务），混入会让 automation turn 误 deny。
+ * 独立常量，绝不并入 AUTOMATION_MUTATION_TOOL_NAMES——cron automation turn 语义不同，
+ * 混入会让 automation turn 误 deny。
  */
-export const OFF_PEAK_MUTATION_TOOL_NAMES = ["OffPeakCreate", "SendMessage", "Workflow"] as const;
+export const OFF_PEAK_MUTATION_TOOL_NAMES = ["SendMessage", "Workflow"] as const;
+/**
+ * 冻结兼容：闲时任务已移除，本 build 不再产出该工具名，也不再把它列入任何 denylist。
+ * 旧 host 仍可能派发带该哨兵的 toolDisallowlist，保留常量仅用于识别这类历史形状。
+ */
+const LEGACY_OFF_PEAK_MUTATION_TOOL_SENTINEL = "OffPeakCreate";
 // 闲时派发 init 段 traceId 无固定前缀，只有 resume 段是 `${offPeakTaskId}:resume:*`
 // （offpeak- 开头）；前缀只是 resume 兜底信号，主信号必须是显式 offPeakTaskId。
 const OFF_PEAK_QUERY_ID_PREFIX = "offpeak-";
@@ -138,17 +142,17 @@ export function isAutomationMutationRestrictedTurn(state: RegularTurnLoopState):
 }
 
 /**
- * 本轮是否为闲时自动派发 turn（需 deny OffPeakCreate）。三重信号与
+ * 本轮是否为闲时自动派发 turn（该类 turn 禁止执行变更类工具）。三重信号与
  * isAutomationMutationRestrictedTurn 同构：显式 offPeakTaskId 为主信号；
  * resume 段 traceId 前缀与 turn denylist 是纵深兜底。
  */
-export function isOffPeakCreateRestrictedTurn(state: RegularTurnLoopState): boolean {
+export function isOffPeakMutationRestrictedTurn(state: RegularTurnLoopState): boolean {
   if (state.offPeakTaskId?.trim()) return true;
   if (state.turnTraceContext.queryId?.trim().startsWith(OFF_PEAK_QUERY_ID_PREFIX)) return true;
 
-  // 兜底只认 OffPeakCreate 这一哨兵：旧 host 派发的 denylist 可能尚未带上 新增的工具。
+  // 兜底只认冻结的旧哨兵：旧 host 派发的 denylist 会带上它，新 host 不再产出。
   const disallowedTools = new Set(state.toolDisallowlist ?? []);
-  return disallowedTools.has(OFF_PEAK_MUTATION_TOOL_NAMES[0]);
+  return disallowedTools.has(LEGACY_OFF_PEAK_MUTATION_TOOL_SENTINEL);
 }
 
 export function evaluateRapidRefill(

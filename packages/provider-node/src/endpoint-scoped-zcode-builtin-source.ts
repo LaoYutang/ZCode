@@ -4,11 +4,9 @@ import {
   resolveZCodeBuiltinCachePaths,
 } from "./zcode-builtin-cache-paths.js";
 import { NodeZCodeBuiltinProviderConfigSource } from "./zcode-builtin-provider-config-source.js";
-import {
-  ZCodeBuiltinRemoteSynchronizer,
-  type ZCodeBuiltinRefreshResult,
-  type ZCodeBuiltinRemoteSynchronizerOptions,
-} from "./zcode-builtin-remote-synchronizer.js";
+
+/** 内置配置刷新结果。远程来源已移除，只保留"未执行/已释放"两种终态。 */
+export type ZCodeBuiltinRefreshResult = "skipped" | "disposed";
 
 export interface EndpointScopedZCodeBuiltinSourceOptions {
   readonly bundledFilePath: string;
@@ -16,14 +14,15 @@ export interface EndpointScopedZCodeBuiltinSourceOptions {
   readonly platform: string;
   readonly appVersion: string;
   readonly resolveEndpointOrigin: () => string | Promise<string>;
-  readonly fetchRelease: ZCodeBuiltinRemoteSynchronizerOptions["fetchRelease"];
-  readonly onRefreshResult?: ZCodeBuiltinRemoteSynchronizerOptions["onRefreshResult"];
   readonly watch?: boolean;
 }
 
 /**
- * 让 Environment 的 ZCode 控制面 Endpoint 同时决定 Active/LKG 与刷新控制路径。
+ * 让 Environment 的 ZCode 控制面 Endpoint 决定 Active/LKG 路径。
  * Endpoint 切换只替换当前 Source，不读取上一 Endpoint 的缓存。
+ *
+ * Endpoint 只影响缓存路径，不再影响配置来源：内置配置以打包文件为**唯一**事实来源，
+ * 不存在远端下发，因此也不会被更高 revision 的历史缓存覆盖。
  */
 export class EndpointScopedZCodeBuiltinSource implements ProviderSource<ProviderConfigLayerSnapshot> {
   readonly #options: EndpointScopedZCodeBuiltinSourceOptions;
@@ -46,8 +45,9 @@ export class EndpointScopedZCodeBuiltinSource implements ProviderSource<Provider
     return () => this.#listeners.delete(listener);
   }
 
-  async refresh(options?: { readonly force?: boolean }): Promise<ZCodeBuiltinRefreshResult> {
-    return (await this.#ensureCurrent()).synchronizer.refresh(options);
+  async refresh(): Promise<ZCodeBuiltinRefreshResult> {
+    // 没有远程来源可拉取；保留方法以满足 RefreshableProviderSource 契约。
+    return "skipped";
   }
 
   /** 返回当前 Environment Endpoint 对应、已完成物化的 Active Config 路径。 */
@@ -91,31 +91,17 @@ export class EndpointScopedZCodeBuiltinSource implements ProviderSource<Provider
       watch: this.#options.watch,
     });
     const sourceDispose = source.onDidChange((reason) => this.#emit(reason));
-    const synchronizer = new ZCodeBuiltinRemoteSynchronizer({
-      source,
-      controlFilePath: paths.controlFilePath,
-      resolveEndpointKey: async () =>
-        normalizeZCodeBuiltinEndpointOrigin(await this.#options.resolveEndpointOrigin()),
-      fetchRelease: this.#options.fetchRelease,
-      onRefreshResult: this.#options.onRefreshResult,
-    });
     try {
       await source.read();
       this.#assertNotDisposed();
     } catch (error) {
       sourceDispose();
-      synchronizer.dispose();
       source.dispose();
       throw error;
     }
 
     const previous = this.#current;
-    const current = new CurrentEndpointSource(
-      paths.activeFilePath,
-      source,
-      synchronizer,
-      sourceDispose,
-    );
+    const current = new CurrentEndpointSource(paths.activeFilePath, source, sourceDispose);
     this.#current = current;
     previous?.dispose();
     if (previous) this.#emit("endpoint-changed");
@@ -136,13 +122,11 @@ class CurrentEndpointSource {
   constructor(
     readonly activeFilePath: string,
     readonly source: NodeZCodeBuiltinProviderConfigSource,
-    readonly synchronizer: ZCodeBuiltinRemoteSynchronizer,
     readonly sourceDispose: () => void,
   ) {}
 
   dispose(): void {
     this.sourceDispose();
-    this.synchronizer.dispose();
     this.source.dispose();
   }
 }

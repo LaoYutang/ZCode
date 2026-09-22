@@ -1,5 +1,8 @@
 // 冻结的数据迁移只生成 SQL，checksum 覆盖最终 SQL；不调用可变账号/Registry。
 // 旧对象不删除、不覆盖，历史消息来源只换结构，当前 Session 选择才使用既有身份映射。
+// 注意：本迁移写入的 `account:*` provider id 在当前构建中已不存在（账号与登录能力已移除，
+// 供应商只来自用户个人配置），这些历史选择会解析为不可用并要求用户重新选择；SQL 与
+// checksum 保持冻结，不随本次移除改写。
 const value = (path: string) => `json_extract(data, '$.${path}')`;
 const text = (expression: string) =>
   `(typeof(${expression}) = 'text' and length(trim(${expression})) > 0)`;

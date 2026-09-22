@@ -1,14 +1,14 @@
-import type { ConversationShareAccessMode, ConversationSharePreview } from "@zcode/shared";
+import type { ConversationSharePreview } from "@zcode/shared";
 import { ConversationSharePreviewClientError } from "./conversationSharePreviewClient.js";
 
-function previewFor(accessMode: ConversationShareAccessMode): ConversationSharePreview {
+function previewFor(): ConversationSharePreview {
   const createdAt = Date.now() - 60_000;
   return {
     schema_version: 1,
     unsupportedRowCount: 0,
     share: {
-      title: accessMode === "private" ? "Private share" : "Conversation share preview",
-      access_mode: accessMode,
+      title: "Conversation share preview",
+      access_mode: "public_importable",
       created_at: createdAt,
       expires_at: createdAt + 24 * 60 * 60 * 1_000,
     },
@@ -79,7 +79,7 @@ function previewFor(accessMode: ConversationShareAccessMode): ConversationShareP
 }
 
 export class MockConversationSharePreviewClient {
-  async getPreview(shareCode: string, accessToken?: string): Promise<ConversationSharePreview> {
+  async getPreview(shareCode: string): Promise<ConversationSharePreview> {
     if (shareCode === "mock-expired") {
       throw new ConversationSharePreviewClientError({
         kind: "expired",
@@ -96,12 +96,13 @@ export class MockConversationSharePreviewClient {
         code: 3211,
       });
     }
-    if (shareCode === "mock-private" && accessToken !== "mock-owner-token") {
+    // 私密分享只有分享者本人可见：无账号模式恒为不可访问，用于验收「不可访问」状态。
+    if (shareCode === "mock-private") {
       throw new ConversationSharePreviewClientError({
-        kind: "not_found",
-        message: "Share not found",
-        status: 404,
-        code: 3211,
+        kind: "authentication_required",
+        message: "Share requires the author account",
+        status: 401,
+        code: 3213,
       });
     }
     // 跨版本兼容的两个手工验收入口（真实链路里由 conversationSharePreviewClient 判定）。
@@ -114,10 +115,8 @@ export class MockConversationSharePreviewClient {
     }
     // 认得的行照常渲染，另有一行本 build 认不出被跳过：顶部应出现软提示。
     if (shareCode === "mock-partial-unsupported") {
-      return { ...previewFor("public_importable"), unsupportedRowCount: 1 };
+      return { ...previewFor(), unsupportedRowCount: 1 };
     }
-    if (shareCode === "mock-readonly") return previewFor("public_readonly");
-    if (shareCode === "mock-private") return previewFor("private");
-    return previewFor("public_importable");
+    return previewFor();
   }
 }

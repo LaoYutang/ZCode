@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { ModelApiCallObservation } from "../telemetry/index.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import type {
@@ -29,8 +28,8 @@ export interface ModelInvocationContext {
   streamIdleTimeoutRetryNumber?: number;
   streamRecovery?: ModelStreamRecoveryStatus;
   preserveProviderStreamBoundaries?: boolean;
+  /** 每个真实请求 attempt 前的执行作用域鉴权刷新；账号型鉴权随账号能力移除。 */
   refreshRuntimeHeadersBeforeAttempt?: (input: {
-    accountAccess?: ZCodeProviderAccountAccess;
     attempt: number;
     reason?: "model-request";
     abortSignal?: AbortSignal;

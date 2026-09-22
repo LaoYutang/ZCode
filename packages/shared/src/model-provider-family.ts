@@ -136,16 +136,6 @@ export function shouldShowModelProviderFamilyForDomain(params: {
   return params.familyId === providerFamilyDomain;
 }
 
-export function shouldShowModelProviderFamilyForActiveOAuth(params: {
-  familyId: ModelProviderFamilyId;
-  activeOAuthProvider: OAuthProviderId | null | undefined;
-}): boolean {
-  return shouldShowModelProviderFamilyForDomain({
-    familyId: params.familyId,
-    providerFamilyDomain: resolveProviderFamilyDomainFromOAuthProvider(params.activeOAuthProvider),
-  });
-}
-
 export function shouldShowBuiltinModelProviderForDomain(params: {
   providerId: string;
   providerFamilyDomain: ProviderFamilyDomain | null | undefined;
@@ -157,15 +147,5 @@ export function shouldShowBuiltinModelProviderForDomain(params: {
   return shouldShowModelProviderFamilyForDomain({
     familyId,
     providerFamilyDomain: params.providerFamilyDomain,
-  });
-}
-
-export function shouldShowBuiltinModelProviderForActiveOAuth(params: {
-  providerId: string;
-  activeOAuthProvider: OAuthProviderId | null | undefined;
-}): boolean {
-  return shouldShowBuiltinModelProviderForDomain({
-    providerId: params.providerId,
-    providerFamilyDomain: resolveProviderFamilyDomainFromOAuthProvider(params.activeOAuthProvider),
   });
 }

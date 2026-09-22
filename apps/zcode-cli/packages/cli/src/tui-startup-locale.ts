@@ -33,7 +33,7 @@ export function resolveTuiStartupLocale({
     workingDirectory,
   });
 
-  // login-required startup renders local TUI panels before ZCodeApp
-  // exists, so the CLI boundary must resolve persisted ui.locale itself.
+  // 无可用模型时的启动面板在 ZCodeApp 之前就要渲染，因此 CLI 边界必须自己解析
+  // 已持久化的 ui.locale。
   return resolveLocale(configResult.config.ui.locale, options.detectedLocale);
 }

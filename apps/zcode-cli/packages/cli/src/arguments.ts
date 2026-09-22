@@ -18,6 +18,8 @@ export const parseGlobalArgs = (argv: string[]) =>
       "no-color": {
         type: "boolean",
       },
+      // 冻结兼容开关：登录 OAuth 流程已移除，当前无消费者；保留解析是为了让既有
+      // 调用（脚本/旧桌面端）不会因未知选项直接抛错。
       "no-browser": {
         type: "boolean",
       },

@@ -17,6 +17,9 @@ export function resolveDesktopProductionCleanPaths(cwd) {
     resolve(cwd, "out/host"),
     resolve(cwd, "out/preload"),
     resolve(cwd, "out/renderer"),
+    // scheduler 也是 tsup 的产物目录，但此前漏在清理列表之外：源文件删除后旧产物会一直留在
+    // out/scheduler 并被 electron-builder 打进 app.asar，等于继续发布已移除的模块。
+    resolve(cwd, "out/scheduler"),
     resolve(cwd, "out/.main-build-ready"),
     resolve(cwd, "out/.host-build-ready"),
     resolve(cwd, "out/.preload-build-ready"),

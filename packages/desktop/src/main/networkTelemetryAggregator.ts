@@ -69,14 +69,12 @@ const STATIC_HTTP_PATH_SEGMENTS = new Set([
   "api",
   "authorize",
   "availability",
-  "balance",
   "billing",
   "biz",
   "bootstrap",
   "cancel",
   "claim",
   "client",
-  "coding-plan",
   "configs",
   "customer",
   "electron",
@@ -90,6 +88,8 @@ const STATIC_HTTP_PATH_SEGMENTS = new Set([
   "mcp",
   "mobile-view-state",
   "models",
+  // 第三方 MCP OAuth 仍然存活，其授权/令牌端点来自远端元数据，路径段不可枚举，
+  // 常见的 /oauth/token、/oauth/authorize 形态需要保留登记。
   "oauth",
   "off-peak",
   "order",

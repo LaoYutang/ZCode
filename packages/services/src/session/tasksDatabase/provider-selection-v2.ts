@@ -3,6 +3,8 @@ import type { ModelSelection } from "@zcode/shared";
 
 // 冻结 0002 的发布前已裁决编码；不能调用将来可能修改的运行时 parser/身份表。
 // 保持与旧 decodeCustomModelValue / parseModelPickerValue 的转义和分隔优先级一致。
+// 注意：映射表里的 `account:*` provider id 在当前构建中已不存在（账号与登录能力已移除，
+// 供应商只来自用户个人配置），这些历史选择会解析为不可用；SQL/映射保持冻结以便历史重放。
 const providerNames: Readonly<Record<string, string>> = {
   "builtin:bigmodel": "bigmodel-api",
   "builtin:zai": "zai-api",

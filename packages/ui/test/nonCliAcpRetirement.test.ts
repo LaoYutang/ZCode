@@ -66,7 +66,7 @@ test("current question results work while Claude ACP text is no longer interpret
 
 test("ZCode subagent identity wins over retired Codex nicknames", () => {
   const tool = {
-    id: "tool-example",
+    toolId: "tool-example",
     kind: "Agent",
     title: "Agent",
     status: "completed" as const,

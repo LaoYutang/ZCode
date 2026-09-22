@@ -56,9 +56,8 @@ export const commandPayloadSchemas = {
     config: createSessionRequestedConfigSchema.optional(),
     // MCP 是 runtime 启动期配置，必须随 create 一次性进入 record，不能在首发后补写。
     mcpServers: z.array(zcodeProtocolMcpServerSchema).optional(),
-    // Off-Peak 工具面 flag，与 legacy session/create 等价——V4 createSession 是桌面
-    // 新会话的实际创建路径，不透传则 OffPeakCreate/OffPeakList 永不注册。additive，
-    // 旧 CLI 的 z.object 会静默丢弃该键（fail-closed）。
+    // 冻结兼容字段：闲时任务已随账号能力移除，本字段无生产者；保留以兼容历史请求
+    // （additive，旧 CLI 的 z.object 会静默丢弃该键）。
     offPeakToolEnabled: z.boolean().optional(),
     // 动态工作流灰度 flag，与 offPeakToolEnabled 同一模式。
     dynamicWorkflowEnabled: z.boolean().optional(),
@@ -101,6 +100,8 @@ export const commandPayloadSchemas = {
       // 仅 idle startNow 接受，防止 Secret/Ticket 进入普通 CommandInbox。
       modelExecution: modelExecutionSchema.optional(),
       automationId: z.string().min(1).optional(),
+      // 冻结兼容字段：闲时任务已随账号能力移除，本 build 无生产者；保留以兼容历史请求体，
+      // 下面的 automationId ∧ offPeakTaskId 互斥规则同步保留（旧客户端仍会带上其中一个）。
       offPeakTaskId: z.string().min(1).optional(),
       offPeakRunType: z.enum(["init", "resume"]).optional(),
       // 定时任务会话的后续用户输入也必须保持 turn-scoped 工具面隔离；不能借用

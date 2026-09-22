@@ -46,14 +46,10 @@ import {
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
-import { homedir, hostname } from "node:os";
+import { homedir } from "node:os";
 import {
-  createCredentialService,
   createSettingService,
   createTelemetryCore,
-  createTelemetryMarketingParamsLoader,
-  createTelemetryUserIdLoader,
-  createTelemetryAuthorizationLoader,
   buildRuntimeProcessEnvPatch,
   captureLoginShellEnvSnapshot,
   getConversationWorkspaceDir,
@@ -74,7 +70,6 @@ import {
   ZCODE_VERSION,
   ZCODE_TELEMETRY_ENABLED,
   ZCODE_ARMS_RUM_ENDPOINT,
-  buildZCodeEndpointUrls,
   resolveZCodeEndpointOrigin,
   shouldEnableE2ETestBridge,
   isAutoUpdateEnabledForUpdateSource,
@@ -114,7 +109,6 @@ import {
   type AppShutdownKind,
 } from "./appShutdownPolicy.js";
 import { createPrimaryWindowCoordinator } from "./primaryWindowCoordinator.js";
-import { createTempTextAttachment } from "./tempTextAttachment.js";
 import { flushMainE2ECoverage } from "./e2eCoverage.js";
 import { resolveStartupWindowBootstrap, type StartupWindowBootstrap } from "./startupWorkspace.js";
 import {
@@ -172,12 +166,12 @@ import {
 } from "./desktopHostProcess.js";
 import { spawnCronScheduler, type CronSchedulerHandle } from "./desktopCronScheduler.js";
 import {
-  clearOAuthRoutesForWindow,
+  clearWorkspaceDeepLinkRoutesForWindow,
   handleDeepLink,
   handleOpenWorkspacePath,
   registerDeepLinkProtocol,
   resolveExternalWorkspaceOpenDialogCopy,
-} from "./desktopOAuthDeepLink.js";
+} from "./desktopWorkspaceDeepLink.js";
 import { handleSecondInstanceWorkspaceRequest } from "./desktopSecondInstanceDeepLink.js";
 import { installFinderOpenFolderWorkflow } from "./desktopFinderOpenFolderWorkflow.js";
 import { installWindowsOpenFolderContextMenu } from "./desktopWindowsOpenFolderContextMenu.js";
@@ -201,11 +195,6 @@ import {
 } from "./resourceManagerWindow.js";
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
-import {
-  loadCliMcpFromUserDirectory,
-  migrateLegacyCommonMcp,
-  saveCliMcpToUserDirectory,
-} from "./mcpUserDirectory/index.js";
 import { registerRemoteIpcHandlers } from "./desktopMainIpcRemote.js";
 import {
   configureDesktopStabilityTelemetry,
@@ -643,17 +632,8 @@ function forwardCronRunResult(
 ): void {
   cronScheduler?.handleCronRunResult(result);
 }
-function forwardOffPeakRunResult(
-  result: Parameters<CronSchedulerHandle["handleOffPeakRunResult"]>[0],
-): void {
-  cronScheduler?.handleOffPeakRunResult(result);
-}
 function wakeCronScheduler(automationId: string): void {
   cronScheduler?.wake(automationId);
-}
-function wakeOffPeakScheduler(offPeakTaskId?: string): void {
-  // 复用同一条 scheduler-wake 通道（tick 同时覆盖 cron 与 off-peak 分支），仅日志标签区分。
-  cronScheduler?.wake(`offpeak:${offPeakTaskId ?? "sync"}`);
 }
 // 选一个本地 host 执行派发：本期本地 workspace 由任一本地窗口 host 的 createTask 按 path 拉起/复用 agent。
 function resolveCronDispatchHost(): ElectronUtilityProcess | null {
@@ -673,7 +653,6 @@ const UPDATE_STATUS_WINDOW_TRAFFIC_LIGHT_POSITION = { x: 10, y: 10 } as const;
 const mainSettingService = createSettingService();
 const appLaunchGate = createAppLaunchGate();
 const appLaunchCoordinator = createAppLaunchCoordinator(appLaunchGate);
-const appTelemetryCredentialService = createCredentialService();
 async function resolveCurrentZCodeEndpointOrigin() {
   return resolveZCodeEndpointOrigin({
     env: ZCODE_ENV,
@@ -728,9 +707,7 @@ function awaitFirstHostSpawnDecision(): Promise<void> {
   return firstHostSpawnDecisionPromise;
 }
 const appTelemetryCore = createTelemetryCore({
-  loadUserId: createTelemetryUserIdLoader(appTelemetryCredentialService),
-  loadAuthorization: createTelemetryAuthorizationLoader(appTelemetryCredentialService),
-  loadMarketingParams: createTelemetryMarketingParamsLoader(appTelemetryCredentialService),
+  // 无账号模式：遥测身份匿名，不再从登录凭据派生 user.id / 鉴权头 / 营销归因。
   resolveZCodeEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
   fetchImpl: createDesktopTelemetryFetch(net),
 });
@@ -1731,9 +1708,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
             void appTelemetryCore.reportEvent(message.event).catch(() => {});
           },
           onCronRunResult: forwardCronRunResult,
-          onOffPeakRunResult: forwardOffPeakRunResult,
           onCronSchedulerWakeRequested: wakeCronScheduler,
-          onOffPeakSchedulerWakeRequested: wakeOffPeakScheduler,
           authorizeLocalMediaPreviewPath: localMediaPreviewPathRegistry.authorize,
           // browser-use：main 用 WebContentsView+CDP 执行命令。
           handleBrowserExecuteRequest: ({ win: browserWin, ...request }) =>
@@ -1898,8 +1873,6 @@ app.whenReady().then(async () => {
         hostProcessLocalEnv,
         logger,
         resolveDispatchHost: resolveCronDispatchHost,
-        // keep-awake 已改为纯设置驱动；计数上报保留给后续诊断/配额用途，不再联动 blocker。
-        onOffPeakActiveCountChanged: () => {},
       });
     } catch (error) {
       logger.error("[cron-scheduler] failed to spawn scheduler process:", error);
@@ -2099,9 +2072,6 @@ app.whenReady().then(async () => {
   registerRemoteIpcHandlers({
     logger,
     appTelemetryRuntime,
-    onOAuthCallbackHandledSideEffect: () => {
-      void armsUserIdentitySync.refresh();
-    },
     appTelemetryCore,
     reportRemoteUsageEvent: reportRemoteUsageEventForRenderer,
     armsCustomContext: {
@@ -2248,8 +2218,8 @@ app.on("browser-window-created", (_, win) => {
     }
     // Electron 进入 closed 回调时，win.webContents 可能已经被销毁。
     // 之前这里现取 win.webContents.id，会在关窗收尾阶段抛出 "Object has been destroyed"。
-    // 改为在窗口创建时缓存 webContents id，确保清理 OAuth 路由时不再访问已销毁对象。
-    clearOAuthRoutesForWindow(windowWebContentsId);
+    // 改为在窗口创建时缓存 webContents id，确保清理 deep link 路由时不再访问已销毁对象。
+    clearWorkspaceDeepLinkRoutesForWindow(windowWebContentsId);
     // 录制中关窗/崩溃时 renderer 不会发复位 IPC，这里按发起 webContents 复位录制态，
     // 防止菜单 accelerator 被永久摘除。
     resetShortcutRecordingForWebContents(windowWebContentsId);

@@ -135,7 +135,7 @@ test("missing sessions report the owner error even when a valid ACP snapshot exi
     }
     assert.equal(await readFile(path, "utf8"), content);
   } finally {
-    service.disposeAll();
+    // IZCodeTaskService 未声明 wrapper 级 dispose；依赖全是无副作用的测试桩，无需额外清理。
     setDataBaseDir(null);
     await rm(dir, { recursive: true, force: true });
   }
@@ -219,7 +219,7 @@ test("current session recovery preserves Desktop and replayable projections", as
     assert.equal(resumed.length, 3);
     assert.equal(indexed.length, 3);
   } finally {
-    service.disposeAll();
+    // IZCodeTaskService 未声明 wrapper 级 dispose；桩依赖无副作用，无需额外清理。
   }
 });
 

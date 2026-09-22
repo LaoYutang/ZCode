@@ -1,5 +1,7 @@
 // 冻结本次改名表与 SQL：不能改旧 migration 或引用会随发布变化的实时目录。
 // 只改当前选择，旧字段/历史来源/闲时绑定原样保留；坏 JSON 不影响启动。
+// 注意：本迁移只命中 `account:*` provider id，该 id 在当前构建中已不存在（账号与登录能力
+// 已移除，供应商只来自用户个人配置），改写结果会解析为不可用；SQL 保持冻结以便历史重放。
 export const OFFICIAL_GLM_SELECTION_MIGRATION_SQL = `
 UPDATE session_entry
 SET data = json_set(data, '$.modelSelection.modelId',

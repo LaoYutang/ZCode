@@ -1,10 +1,10 @@
 import type { BrowserWindow } from "electron";
 import {
-  type ExternalWorkspaceOpenDialogCopy,
   confirmExternalWorkspaceOpen,
   isNetworkWorkspacePath,
   isValidLocalWorkspaceDirectory,
-} from "./desktopOAuthDeepLink.js";
+  type ExternalWorkspaceOpenDialogCopy,
+} from "./desktopWorkspaceDeepLink.js";
 import {
   createOpenWorkspaceStartupBootstrap,
   type StartupWindowBootstrap,

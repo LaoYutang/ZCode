@@ -26,7 +26,7 @@ import {
   AUTOMATION_MUTATION_TOOL_NAMES,
   evaluateRapidRefill,
   isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
+  isOffPeakMutationRestrictedTurn,
   MAX_CONSECUTIVE_RAPID_REFILLS,
   OFF_PEAK_MUTATION_TOOL_NAMES,
   RAPID_REFILL_TOOL_TURN_THRESHOLD,
@@ -227,9 +227,8 @@ function buildTurnDisallowedTools(state: RegularTurnLoopState): Set<string> | nu
       tools.add(toolName);
     }
   }
-  if (isOffPeakCreateRestrictedTurn(state)) {
-    // 闲时执行轮禁止再创建闲时任务（防递归自我派生）；OffPeakList 只读保留。
-    // 注意 automation 执行轮不进此分支——cron turn 放行 OffPeakCreate。
+  if (isOffPeakMutationRestrictedTurn(state)) {
+    // 闲时执行轮隐藏会在本轮 modelExecution 之外重启子 Agent 的工具。
     for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) {
       tools.add(toolName);
     }
