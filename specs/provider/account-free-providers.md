@@ -242,13 +242,13 @@ env -u ZCODE_BUILTIN_PROVIDER_CONFIG_FILE -u ZCODE_DATA_BASE_DIR pnpm bundle:des
 [tsup] ZCODE_ENV=production ZCODE_PRODUCT_FLAVOR=production ZCODE_UPDATE_SOURCE=github-release    ← 正常启动
 ```
 
-因此**打包自建产物时必须设置 `ZCODE_UPDATE_REPOSITORY`**（本仓库远端为 `LaoYutang/ZCode`），
+因此**打包自建产物时必须设置 `ZCODE_UPDATE_REPOSITORY`**（本仓库远端为 `LaoYutang/ZCode-Lite`），
 它把更新源切到自己的 GitHub Release，官方强更闸随之失效——这正是
 `specs/update/desktop-auto-update-source.md` 为 fork 设计的出口，不需要改代码：
 
 ```bash
 env -u ZCODE_BUILTIN_PROVIDER_CONFIG_FILE -u ZCODE_DATA_BASE_DIR \
-  ZCODE_UPDATE_REPOSITORY=LaoYutang/ZCode \
+  ZCODE_UPDATE_REPOSITORY=LaoYutang/ZCode-Lite \
   pnpm bundle:desktop -- --os win --arch x64
 ```
 

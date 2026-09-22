@@ -64,15 +64,18 @@ test("版本以 tag 为来源：非法 tag 必须让构建失败", () => {
 });
 
 test("更新源：配了仓库就是 github-release，与产品身份无关", () => {
-  const previewEnv = { ZCODE_UPDATE_REPOSITORY: "LaoYutang/ZCode", ZCODE_ENV: "test" };
+  const previewEnv = { ZCODE_UPDATE_REPOSITORY: "LaoYutang/ZCode-Lite", ZCODE_ENV: "test" };
   assert.deepEqual(resolveDesktopUpdateSource(previewEnv), {
     kind: "github-release",
-    repository: "LaoYutang/ZCode",
+    repository: "LaoYutang/ZCode-Lite",
     owner: "LaoYutang",
-    repo: "ZCode",
+    repo: "ZCode-Lite",
   });
 
-  const productionEnv = { ZCODE_UPDATE_REPOSITORY: "LaoYutang/ZCode", ZCODE_ENV: "production" };
+  const productionEnv = {
+    ZCODE_UPDATE_REPOSITORY: "LaoYutang/ZCode-Lite",
+    ZCODE_ENV: "production",
+  };
   assert.equal(resolveDesktopUpdateSource(productionEnv).kind, "github-release");
 
   // 仓库名允许点、下划线、短横线。

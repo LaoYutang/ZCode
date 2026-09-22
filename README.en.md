@@ -1,4 +1,4 @@
-# ZCode
+# ZCode-Lite
 
 <div align="center">
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
@@ -10,6 +10,19 @@
 <p align="center">
   <a href="README.md">简体中文</a> | English
 </p>
+
+> ### Fork notice
+>
+> This repository is a fork of [zai-org/ZCode](https://github.com/zai-org/ZCode), renamed to **ZCode-Lite**. It keeps the ZCode coding workspace while dropping the dependency on Zhipu's (Z.ai / BigModel) account system, maintained as a lightweight, self-hostable branch.
+>
+> Main differences from upstream:
+>
+> - **Login and account interfaces removed**: Z.ai / BigModel OAuth login, browser authorization and deep link callbacks, Coding Plan API Key exchange, account credential refresh, and the account-state derivation built on them. The app holds no login state and exposes no login entry point.
+> - **Account-derived official features removed**: off-peak tasks, plan subscription and quota panel, plan identity badges, official Server MCP credentials, login-gated conversation sharing and feedback, telemetry identity and marketing attribution, and remote workspace credential delivery.
+> - **Fully self-managed providers**: the built-in config only supplies `api-key` templates and generic model metadata; the user's personal provider config (default `~/.zcode/v2/provider_config.json`) is the single source of truth.
+> - **Desktop update source decoupled**: the official manifest is no longer requested; updates read this repository's GitHub Releases and only notify with a link to the download page, never downloading or installing automatically.
+>
+> The product name, the `zcode` command, and the `@zcode/*` package scope stay aligned with upstream so the fork can keep following it. See [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md) and [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md) for the full rules.
 
 ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 

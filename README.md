@@ -1,4 +1,4 @@
-# ZCode
+# ZCode-Lite
 
 <div align="center">
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
@@ -10,6 +10,19 @@
 <p align="center">
   简体中文 | <a href="README.en.md">English</a>
 </p>
+
+> ### Fork 说明
+>
+> 本仓库 fork 自 [zai-org/ZCode](https://github.com/zai-org/ZCode)，重命名为 **ZCode-Lite**。目标是在保留 ZCode 编程工作台能力的前提下，去掉对智谱（Z.ai / BigModel）官方账号体系的依赖，作为轻量、可自部署的分支维护。
+>
+> 相对上游的主要差异：
+>
+> - **移除登录与账号接口**：Z.ai / BigModel OAuth 登录、浏览器授权与 deep link 回调、Coding Plan API Key 换取、账号凭据刷新，以及由此派生的账号态判定。应用不再持有或刷新登录态，界面不再有登录入口。
+> - **移除登录派生的官方功能**：闲时（错峰）任务、套餐订阅与额度面板、套餐身份徽标、官方 Server MCP 凭据、会话分享与反馈的登录鉴权、遥测身份与营销归因、远程工作区凭据下发。
+> - **供应商完全自管**：内置配置只提供 `api-key` 模板与通用模型元数据，用户个人 provider 配置（默认 `~/.zcode/v2/provider_config.json`）是唯一事实来源。
+> - **桌面端更新源解绑**：不再请求官方 manifest，改为读取本仓库的 GitHub Release，只提示并跳转到下载页，不自动下载安装。
+>
+> 产品名、`zcode` 命令与 `@zcode/*` 包作用域与上游保持一致，便于持续跟随上游更新。完整规则见 [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md) 与 [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md)。
 
 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 
