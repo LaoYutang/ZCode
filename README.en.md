@@ -1,7 +1,7 @@
 # ZCode-Lite
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="ZCode-Lite" width="128" height="128" />
 </div>
 <p align="center">
   <a href="README.md">简体中文</a> | English
@@ -20,15 +20,15 @@
   > - **Fully self-managed providers**: the built-in config only supplies `api-key` templates and generic model metadata; the user's personal provider config (default `~/.zcode/v2/provider_config.json`) is the single source of truth.
   > - **Desktop update source decoupled**: the official manifest is no longer requested; updates read this repository's GitHub Releases and only notify with a link to the download page, never downloading or installing automatically.
   >
-  > The product name, the `zcode` command, and the `@zcode/*` package scope stay aligned with upstream so the fork can keep following it. See [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md), [specs/help/client-help-surfaces.md](specs/help/client-help-surfaces.md), and [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md) for the full rules.
+  > The display name (window titles, About, installer and Release names) is **ZCode-Lite**; identifiers such as the `zcode` command, the `@zcode/*` package scope, the deep link scheme, and the Linux package names stay aligned with upstream so the fork can keep following it. See [specs/build/product-identity.md](specs/build/product-identity.md), [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md), [specs/help/client-help-surfaces.md](specs/help/client-help-surfaces.md), and [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md) for the full rules.
 
-ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+ZCode-Lite is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
-| Interface                    | Purpose                                                                                   | Development command            |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
-| Desktop                      | Electron desktop application                                                              | `pnpm dev:desktop`             |
-| Web / ZCode CLI distribution | Terminal and browser workspace; packages the TUI, Web client, backend, and Agent together | `pnpm dev:web`                 |
-| Agent CLI                    | The `zcode` terminal interface, which also provides the Agent runtime for Desktop and Web | `pnpm --filter @zcode/cli dev` |
+| Interface                         | Purpose                                                                                   | Development command            |
+| --------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
+| Desktop                           | Electron desktop application                                                              | `pnpm dev:desktop`             |
+| Web / ZCode-Lite CLI distribution | Terminal and browser workspace; packages the TUI, Web client, backend, and Agent together | `pnpm dev:web`                 |
+| Agent CLI                         | The `zcode` terminal interface, which also provides the Agent runtime for Desktop and Web | `pnpm --filter @zcode/cli dev` |
 
 ## Setup
 
@@ -86,9 +86,9 @@ ZCODE_SERVER_WORKSPACE=/path/to/project pnpm dev:web
 
 This starts both the Web development server (default: `http://localhost:5173`) and the backend (default: `http://localhost:3030`). Open the Web development server in your browser. `/ws` and general `/api` requests are proxied to the local backend; `/api/v1/oauth/token` is proxied separately to the configured product service.
 
-After changing Agent source code, run `pnpm --filter @zcode/cli... build` and restart the service. To validate the complete distribution, extract and run it as described under Packaging → ZCode CLI distribution below.
+After changing Agent source code, run `pnpm --filter @zcode/cli... build` and restart the service. To validate the complete distribution, extract and run it as described under Packaging → ZCode-Lite CLI distribution below.
 
-### ZCode CLI distribution
+### ZCode-Lite CLI distribution
 
 The command-line distribution includes the TUI, Web client, and Agent behind one `zcode` command. With no arguments it starts the TUI; a leading `--web` starts Web mode; all other arguments go to the existing Agent CLI. Both modes run locally without Electron.
 
@@ -158,7 +158,7 @@ pnpm bundle:desktop -- --help
 
 The default target is macOS arm64, and the default output directory is `packages/desktop/dist/`. `--os` accepts `mac`, `win`, or `linux`; `--arch` accepts `x64` or `arm64`. Packaging and signing require the tools and configuration for the target platform.
 
-### ZCode CLI distribution
+### ZCode-Lite CLI distribution
 
 Run `pnpm build:zcode` to build the CLI/TUI, backend, and Web client, collect the TUI native libraries, workers, and runtime dependencies, then assemble the distribution. Running the distribution still requires Node.js; use the version specified in `mise.toml`.
 

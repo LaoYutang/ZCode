@@ -12,9 +12,11 @@ export const INDICATOR_CARD_TOP_OFFSET = 12;
 export const INDICATOR_SHADOW_INSET = { top: 6, right: 8, bottom: 12, left: 8 } as const;
 
 function indicatorCopy(locale: Locale): { text: string; width: number } {
+  // 宽度是窗口尺寸而不是自适应：卡片白底、居中、nowrap，窗口比文字窄就会裁掉尾部。
+  // 13px/600 下拉丁字符约 7.5px，产品名加了 5 个字符，两个语言都比原值 +40px 留出余量。
   return locale === "zh-CN"
-    ? { text: "ZCode 正在操作电脑", width: 234 }
-    : { text: "ZCode is controlling your computer", width: 308 };
+    ? { text: "ZCode-Lite 正在操作电脑", width: 274 }
+    : { text: "ZCode-Lite is controlling your computer", width: 348 };
 }
 
 export function indicatorWindowSize(locale: Locale): { width: number; height: number } {

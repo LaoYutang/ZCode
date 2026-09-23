@@ -11,6 +11,8 @@ import {
 const LINUX_DEEP_LINK_DESKTOP_FILE = "zcode.desktop";
 const LINUX_DEEP_LINK_MIME_TYPE = "x-scheme-handler/zcode";
 // 归属标记：用于识别用户级 zcode.desktop 是否由本应用写入（历史所有版本都带这行 Comment）。
+// 这是写入文件、并在后续启动时逐字比对的标记，不是展示名：改掉它会让改名之前写下的条目
+// 被判定为"非本应用写入"而拒绝清理。产品改名时保持原样。
 const LINUX_DESKTOP_ENTRY_OWNERSHIP_MARKER = "Comment=ZCode Desktop App";
 
 type LinuxDesktopEnv = {
@@ -109,7 +111,7 @@ function createLinuxDeepLinkDesktopEntry(params: {
   productName?: string;
   iconName?: string;
 }): string {
-  const productName = params.productName ?? "ZCode";
+  const productName = params.productName ?? "ZCode-Lite";
   const iconName = params.iconName ?? "zcode";
   const command = {
     executablePath: params.executablePath,

@@ -53,6 +53,11 @@ const desktopUpdateSource = resolveDesktopUpdateSource({
   ...process.env,
   ZCODE_ENV: builtinProviderConfig.environment,
 });
+// 安装包 metadata：deb/rpm 的 homepage、author.email、maintainer 是 fpm 强校验字段，
+// 缺失会让产物阶段直接失败，所以在这里补齐而不是依赖外部注入。
+// 取值指向本 fork 的仓库与维护者，避免安装包的更新入口和报错渠道被引到上游产品线。
+const DESKTOP_PACKAGE_HOMEPAGE = "https://github.com/LaoYutang/ZCode-Lite";
+const DESKTOP_PACKAGE_MAINTAINER = "ZCode-Lite <LaoYutang@users.noreply.github.com>";
 const nativeSearchReleasePlan = resolveNativeSearchReleasePlanForArches(
   declaredTargetArches ?? [jobTargetPlatform.arch],
 );
@@ -470,10 +475,10 @@ export default {
   extraMetadata: {
     version: buildMetadata.appVersion,
     zcodeProductFlavor: desktopProductIdentity.flavor,
-    homepage: "https://zcode.z.ai",
+    homepage: DESKTOP_PACKAGE_HOMEPAGE,
     author: {
-      name: "ZCode",
-      email: "dev@zcode.z.ai",
+      name: "ZCode-Lite",
+      email: "LaoYutang@users.noreply.github.com",
     },
   },
   // macOS 签名阶段会对 Electron Framework 下每个语言包逐个 codesign。
@@ -705,7 +710,7 @@ export default {
     // 与 /usr/share/icons/hicolor/*/apps/zcode.png 保持一致。
     executableName: desktopProductIdentity.linuxExecutableName,
     category: "Development",
-    maintainer: "ZCode <dev@zcode.z.ai>",
+    maintainer: DESKTOP_PACKAGE_MAINTAINER,
   },
   deb: {
     // 生产版与 Preview 必须是两个 dpkg package；只改可执行名仍会让安装器把另一版本当成升级替换。

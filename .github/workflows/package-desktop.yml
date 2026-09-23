@@ -31,7 +31,7 @@ on:
           - production
           - test
       preview_identity:
-        description: "使用 ZCode Preview 产品身份（不影响后端环境）"
+        description: "使用 ZCode-Lite Preview 产品身份（不影响后端环境）"
         required: false
         default: false
         type: boolean
@@ -400,7 +400,7 @@ jobs:
           # 下面的单引号是刻意的：%s / %h 由 git 展开，不是 shell。
           # shellcheck disable=SC2016
           {
-            echo "# ZCode ${RELEASE_TAG#v}"
+            echo "# ZCode-Lite ${RELEASE_TAG#v}"
             echo
             echo "## 更新内容"
             if [[ -n "$previous_tag" ]]; then
@@ -447,7 +447,7 @@ jobs:
           # 先建 draft 再上传资产，最后才转正：
           # 客户端读的是 releases/latest 与随资产发布的 latest*.yml，提前转正会让
           # 客户端在资产就位前拿到 404，表现为“已是最新”而不是“有更新”。
-          args=(release create "$RELEASE_TAG" --draft --verify-tag --title "ZCode ${RELEASE_VERSION}" --notes-file release-notes.md)
+          args=(release create "$RELEASE_TAG" --draft --verify-tag --title "ZCode-Lite ${RELEASE_VERSION}" --notes-file release-notes.md)
           if [[ "$PRERELEASE" == "true" ]]; then
             args+=(--prerelease)
           fi

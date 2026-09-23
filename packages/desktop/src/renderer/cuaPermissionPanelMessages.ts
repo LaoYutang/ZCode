@@ -14,6 +14,7 @@ const MESSAGES: Record<
   Omit<CuaPermissionPanelMessages, "permissionLabel"> & Record<CuaPermissionKind, string>
 > = {
   "zh-CN": {
+    // 面板标题跟随 CUA Helper 的 HELPER_DISPLAY_NAME，用户才能在系统设置的权限列表里对上号。
     documentTitle: "ZCode Computer Use 权限",
     dragTitle: "拖动我到上面的权限列表",
     hintPrefix: "把左边的图标拖进上方的",

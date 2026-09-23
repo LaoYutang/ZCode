@@ -2,12 +2,14 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import type { Locale } from "@zcode/shared";
 
+// 注册表键名保持稳定：后续启动要用同一个键覆盖或删除既有菜单项，
+// 改名会留下用户删不掉的旧右键项。菜单文字每次注册都用 /f 重写，可以安全跟随产品改名。
 const MENU_KEY_NAME = "ZCode.OpenInZCode";
 const DIRECTORY_MENU_KEY = `HKCU\\Software\\Classes\\Directory\\shell\\${MENU_KEY_NAME}`;
 const DRIVE_MENU_KEY = `HKCU\\Software\\Classes\\Drive\\shell\\${MENU_KEY_NAME}`;
 const MENU_LABELS: Record<Locale, string> = {
-  "zh-CN": "在ZCode中打开",
-  "en-US": "Open in ZCode",
+  "zh-CN": "在ZCode-Lite中打开",
+  "en-US": "Open in ZCode-Lite",
 };
 
 type Logger = {

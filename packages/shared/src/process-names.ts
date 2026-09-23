@@ -49,7 +49,9 @@ export function formatZCodeHostProcessName(label?: string): string {
 
 export function formatZCodeRendererProcessName(windowTitle?: string): string {
   const normalizedTitle = windowTitle?.trim();
-  if (!normalizedTitle || normalizedTitle === "ZCode") {
+  // 比较的是 renderer 的 document.title（取 desktop/web index.html 的 <title>）。
+  // 产品展示名改名时必须同步这里，否则主窗口会退化成 zcode-renderer-zcode-lite。
+  if (!normalizedTitle || normalizedTitle === "ZCode-Lite") {
     return joinZCodeProcessName("renderer", "main");
   }
 
@@ -57,7 +59,7 @@ export function formatZCodeRendererProcessName(windowTitle?: string): string {
     return joinZCodeProcessName("renderer", "resource-manager");
   }
 
-  const remoteWindowPrefix = "ZCode - ";
+  const remoteWindowPrefix = "ZCode-Lite - ";
   if (normalizedTitle.startsWith(remoteWindowPrefix)) {
     return joinZCodeProcessName(
       "renderer",

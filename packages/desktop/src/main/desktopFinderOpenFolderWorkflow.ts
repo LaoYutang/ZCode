@@ -4,12 +4,15 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import type { Locale } from "@zcode/shared";
 
+// workflow 目录名保持稳定：它同时是 ~/Library/Services 下的 bundle 路径，
+// 改名会留下一个指向同一条 zcode:// 深链的旧目录，用户在服务菜单里看到两个重复项。
+// Finder 服务菜单里显示的名字来自下面这份标签（写进 Info.plist 的 CFBundleName），改名只需动这里。
 const WORKFLOW_NAME = "Open in ZCode.workflow";
 const WORKFLOW_BUNDLE_ID = "dev.zcode.app.finder-open-workflow";
 const WORKFLOW_VERSION = "5";
 const SERVICES_MENU_LABELS: Record<Locale, string> = {
-  "zh-CN": "在ZCode中打开",
-  "en-US": "Open in ZCode",
+  "zh-CN": "在ZCode-Lite中打开",
+  "en-US": "Open in ZCode-Lite",
 };
 
 const workflowScript = `first=""

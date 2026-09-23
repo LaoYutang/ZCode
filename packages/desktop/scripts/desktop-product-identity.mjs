@@ -7,8 +7,10 @@ export const ZCODE_PREVIEW_IDENTITY_ENV = "ZCODE_PREVIEW_IDENTITY";
 
 const PRODUCTION_IDENTITY = Object.freeze({
   flavor: "production",
+  // appId 是安装/更新标识（Windows AUMID、macOS bundle id、electron-updater 落点），
+  // 不是展示名：改名时保持不变，已装 0.2.x 的用户才能把新版本当作升级而不是并存的新应用。
   appId: "dev.zcode.app",
-  productName: "ZCode",
+  productName: "ZCode-Lite",
   linuxExecutableName: "zcode",
   linuxPackageName: "zcode",
   cuaHelperInstallVariant: null,
@@ -17,7 +19,7 @@ const PRODUCTION_IDENTITY = Object.freeze({
 const PREVIEW_IDENTITY = Object.freeze({
   flavor: "preview",
   appId: "dev.zcode.app.preview",
-  productName: "ZCode Preview",
+  productName: "ZCode-Lite Preview",
   linuxExecutableName: "zcode-preview",
   linuxPackageName: "zcode-preview",
   cuaHelperInstallVariant: "preview",
@@ -69,7 +71,7 @@ export function resolveDesktopProductIdentity(env = process.env) {
 
 /**
  * 产物文件名后缀标记的是后端环境而不是身份：`_TEST` 只出现在测试后端的安装包上。
- * 生产后端的 Preview 包靠 productName（`ZCode Preview-<version>-...`）与正式包区分。
+ * 生产后端的 Preview 包靠 productName（`ZCode-Lite Preview-<version>-...`）与正式包区分。
  */
 export function resolveDesktopArtifactSuffix(env = process.env) {
   return normalizeDesktopZCodeEnv(env) === "test" ? "_TEST" : "";

@@ -1,5 +1,6 @@
 export const OPENROUTER_ATTRIBUTION_HEADERS = {
-  "X-OpenRouter-Title": "ZCode",
+  // OpenRouter 用这个标题在应用榜单里标注流量来源；本仓库是独立分支，不应把用量记到上游名下。
+  "X-OpenRouter-Title": "ZCode-Lite",
   "X-OpenRouter-Categories": "programming-app",
 } as const;
 

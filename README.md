@@ -1,7 +1,7 @@
 # ZCode-Lite
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="ZCode-Lite" width="128" height="128" />
 </div>
 <p align="center">
   简体中文 | <a href="README.en.md">English</a>
@@ -20,15 +20,15 @@
   > - **供应商完全自管**：内置配置只提供 `api-key` 模板与通用模型元数据，用户个人 provider 配置（默认 `~/.zcode/v2/provider_config.json`）是唯一事实来源。
   > - **桌面端更新源解绑**：不再请求官方 manifest，改为读取本仓库的 GitHub Release，只提示并跳转到下载页，不自动下载安装。
   >
-  > 产品名、`zcode` 命令与 `@zcode/*` 包作用域与上游保持一致，便于持续跟随上游更新。完整规则见 [specs/provider/account-free-providers.md](specs/provider/account-free-providers.md)、[specs/help/client-help-surfaces.md](specs/help/client-help-surfaces.md) 与 [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md)。
+  > 展示名（窗口标题、关于、安装包名、Release 名）为 **ZCode-Lite**；`zcode` 命令、`@zcode/*` 包作用域、deep link scheme 与 Linux 包名等标识符与上游保持一致，便于持续跟随上游更新。完整规则见 [specs/build/product-identity.md](specs/build/product-identity.md)、[specs/provider/account-free-providers.md](specs/provider/account-free-providers.md)、[specs/help/client-help-surfaces.md](specs/help/client-help-surfaces.md) 与 [specs/update/desktop-auto-update-source.md](specs/update/desktop-auto-update-source.md)。
 
-ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+ZCode-Lite 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 
-| 入口                 | 用途                                                           | 开发命令                       |
-| -------------------- | -------------------------------------------------------------- | ------------------------------ |
-| Desktop              | Electron 桌面应用                                              | `pnpm dev:desktop`             |
-| Web / ZCode 命令行版 | 终端与浏览器工作台；将 TUI、Web、后端和 Agent 组装为独立运行包 | `pnpm dev:web`                 |
-| Agent CLI            | 在终端中使用 `zcode`，也为 Desktop 和 Web 提供 Agent 运行时    | `pnpm --filter @zcode/cli dev` |
+| 入口                      | 用途                                                           | 开发命令                       |
+| ------------------------- | -------------------------------------------------------------- | ------------------------------ |
+| Desktop                   | Electron 桌面应用                                              | `pnpm dev:desktop`             |
+| Web / ZCode-Lite 命令行版 | 终端与浏览器工作台；将 TUI、Web、后端和 Agent 组装为独立运行包 | `pnpm dev:web`                 |
+| Agent CLI                 | 在终端中使用 `zcode`，也为 Desktop 和 Web 提供 Agent 运行时    | `pnpm --filter @zcode/cli dev` |
 
 ## 初始化
 
@@ -90,9 +90,9 @@ ZCODE_SERVER_WORKSPACE=/path/to/project pnpm dev:web
 
 该命令同时启动 Web 开发服务器（默认 `http://localhost:5173`）和后端（默认 `http://localhost:3030`）；浏览器访问前者。`/ws` 和一般 `/api` 请求代理到本地后端，`/api/v1/oauth/token` 单独代理到当前配置的产品服务。
 
-Agent 源码修改后，执行 `pnpm --filter @zcode/cli... build` 并重启服务。需要验证完整发行包时，按下方“ZCode 命令行版”打包章节解压运行。
+Agent 源码修改后，执行 `pnpm --filter @zcode/cli... build` 并重启服务。需要验证完整发行包时，按下方“ZCode-Lite 命令行版”打包章节解压运行。
 
-### ZCode 命令行版
+### ZCode-Lite 命令行版
 
 命令行发行包包含 TUI、Web 和 Agent，统一使用 `zcode` 启动：无参数进入 TUI；第一个参数为 `--web` 时启动 Web；其他参数交给现有 Agent CLI 处理。两种模式都在本机运行，无需 Electron。
 
@@ -162,13 +162,13 @@ pnpm bundle:desktop -- --help
 
 默认目标为 macOS arm64，默认输出目录为 `packages/desktop/dist/`。`--os` 支持 `mac`、`win`、`linux`，`--arch` 支持 `x64`、`arm64`；实际打包与签名需要目标平台对应的工具和配置。
 
-安装：双击打开产物 DMG，将 ZCode 拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
+安装：双击打开产物 DMG，将 ZCode-Lite 拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
 
 ```bash
-sudo xattr -rd com.apple.quarantine /Applications/ZCode.app
+sudo xattr -rd com.apple.quarantine /Applications/ZCode-Lite.app
 ```
 
-### ZCode 命令行版
+### ZCode-Lite 命令行版
 
 构建入口为 `pnpm build:zcode`。脚本会依次构建 CLI/TUI、后端和 Web，收集 TUI 的原生库、worker 与运行时依赖，再组装发行包；运行发行包仍需要 Node.js，版本以 `mise.toml` 为准。
 

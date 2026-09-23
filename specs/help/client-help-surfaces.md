@@ -16,11 +16,11 @@
 
 `WorkspaceHelpMenuButton` 的菜单项固定为三项，全部由 `DesktopCommandIds` 驱动：
 
-| 菜单项     | 命令                                                    | 平台 |
-| ---------- | ------------------------------------------------------- | ---- |
-| 资源管理器 | `DesktopCommandIds.OpenResourceManager`                 | 桌面 |
-| 检查更新   | `DesktopCommandIds.CheckForUpdates`（含「重启更新」态） | 桌面 |
-| 关于 ZCode | `DesktopCommandIds.ShowAbout`                           | 桌面 |
+| 菜单项          | 命令                                                    | 平台 |
+| --------------- | ------------------------------------------------------- | ---- |
+| 资源管理器      | `DesktopCommandIds.OpenResourceManager`                 | 桌面 |
+| 检查更新        | `DesktopCommandIds.CheckForUpdates`（含「重启更新」态） | 桌面 |
+| 关于 ZCode-Lite | `DesktopCommandIds.ShowAbout`                           | 桌面 |
 
 菜单项全部只在桌面端存在，因此 Web 端不渲染帮助入口本身（`WorkspaceHelpMenuButton` 在 `isDesktop === false` 时返回 `null`），不再渲染一个空菜单。原生应用菜单（macOS）的「帮助」子菜单同样只保留关于 / 检查更新 / 资源管理器 / 导出日志。
 
@@ -70,7 +70,7 @@
 
 ## 验收场景
 
-1. 桌面端右上角「?」菜单只有资源管理器、检查更新（可见时）、关于 ZCode 三项。
+1. 桌面端右上角「?」菜单只有资源管理器、检查更新（可见时）、关于 ZCode-Lite 三项。
 2. Web 端右上角没有「?」入口。
 3. 顶栏（含活动任务）不再出现分享图标；会话面板不出现分享选择 Dock、遮罩与只读分享时间线。
 4. 快速选择（Command/Ctrl+K）搜索「问题上报」「反馈」「社群」「产品文档」无结果；搜索「添加供应商」仍可用。
