@@ -446,7 +446,6 @@ const enUS: Record<string, string> = {
   "workflowDirectory.truncated": "Showing the {count} most recent runs only",
   "workflowDirectory.unavailable": "Workflow runs can't be listed for this conversation",
   "chat.selections.comment": "Comment",
-  "chat.selections.commentPlaceholder": "Optional: add context for this quote…",
   "chat.selections.commentSubmit": "Add to chat",
   "chat.selections.askInSideChat": "Add in side chat",
   "chat.selections.sideBlocked":

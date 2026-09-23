@@ -59,11 +59,13 @@ export function SelectionCommentBox({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [comment, onClose, onSubmit]);
   return createPortal(
+    // 浮层经 portal 挂到 document.body：根元素不声明前景色，Electron 为 vibrancy 也不设
+    // color-scheme，因此这里不显式取主题前景色就会落到 UA 默认黑色，暗色主题下输入的文字看不见。
     <div
       ref={ref}
       data-selection-comment-box="true"
       style={{ left: 12, top: 12 }}
-      className="fixed z-50 flex w-96 max-w-[calc(100vw-24px)] flex-col gap-2 rounded-lg border border-popover-border bg-menu p-2 shadow-md"
+      className="fixed z-50 flex w-96 max-w-[calc(100vw-24px)] flex-col gap-2 rounded-lg border border-popover-border bg-menu p-2 text-foreground shadow-md"
     >
       <div className="line-clamp-3 border-l-2 border-border pl-2 text-ui-sm break-words whitespace-pre-wrap text-foreground-subtle">
         {quotedText}
@@ -72,8 +74,8 @@ export function SelectionCommentBox({
         autoFocus
         rows={3}
         value={comment}
+        aria-label={intl.formatMessage({ id: "chat.selections.comment" })}
         onChange={(event) => setComment(event.currentTarget.value)}
-        placeholder={intl.formatMessage({ id: "chat.selections.commentPlaceholder" })}
         className="min-h-14 text-ui-base"
       />
       <div className="flex items-center justify-end gap-2">

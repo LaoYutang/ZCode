@@ -430,7 +430,6 @@ const zhCN: Record<string, string> = {
   "workflowDirectory.truncated": "仅显示最近 {count} 条实例",
   "workflowDirectory.unavailable": "无法列出这条对话的工作流实例",
   "chat.selections.comment": "评论",
-  "chat.selections.commentPlaceholder": "可选：说明你的问题或意图…",
   "chat.selections.commentSubmit": "添加到当前任务",
   "chat.selections.askInSideChat": "在辅助对话中提问",
   "chat.selections.sideBlocked": "请先处理辅助对话中的待处理请求。",
