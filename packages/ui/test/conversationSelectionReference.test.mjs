@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-// 模块只在调用期触碰 window（派发 add 事件），因此测试内给一个最小替身即可覆盖写入、预算与去重。
+// 模块只在调用期触碰 window（派发引用变更广播），因此测试内给一个最小替身即可覆盖写入、预算与去重。
 globalThis.window = { dispatchEvent: () => true };
 
 const {
@@ -9,11 +9,18 @@ const {
   buildPromptWithConversationSelections,
   createConversationSelectionReference,
   dispatchConversationSelectionAdd,
+  getConversationSelectionChangeEventName,
   getConversationSelectionReferenceLimitReason,
   getConversationSelectionReferenceScope,
+  isConversationSelectionChangeEvent,
   parsePromptConversationSelections,
   setConversationSelectionReferenceScope,
 } = await import("../src/lib/conversationSelectionReference.ts");
+const {
+  PLAN_APPROVAL_APPROVE_VALUE,
+  resolvePlanApprovalFeedbackAnswer,
+  resolvePlanApprovalOptions,
+} = await import("../src/lib/planApproval.ts");
 const { parseComposerPromptContexts, serializeComposerPromptContexts } =
   await import("../src/v4/composer/composerPromptContexts.ts");
 const { resolvePlanSelectionSource } = await import("../src/lib/planToolCall.ts");
@@ -239,4 +246,61 @@ test("计划来源：标题回退链与文件路径", () => {
   const bare = resolvePlanSelectionSource({ ...base, markdown: "" });
   assert.equal(bare.sourceTitle, "计划");
   assert.equal("path" in bare, false, "没有计划文件时不应写入 path");
+});
+
+test("计划确认：有评论时批准选项被收窄，评论组装成反馈文本", () => {
+  const approveOption = { value: PLAN_APPROVAL_APPROVE_VALUE, label: "批准" };
+  const otherOption = { value: "other", label: "其它" };
+  const options = [approveOption, otherOption];
+  assert.deepEqual(resolvePlanApprovalOptions(options, false), options, "没有评论时批准照旧");
+  assert.deepEqual(resolvePlanApprovalOptions(options, true), [otherOption]);
+
+  const comments = [{ text: "第二步重试两次没必要", comment: "改成一次性调用" }];
+  // 只有评论：答复文本就是尾块本身，不再依赖用户手打理由。
+  const commentsOnly = resolvePlanApprovalFeedbackAnswer("", comments);
+  assert.deepEqual(parseBlockItem(commentsOnly), [
+    { text: "第二步重试两次没必要", comment: "改成一次性调用" },
+  ]);
+  assert.equal(parsePromptConversationSelections(commentsOnly).visibleContent, "");
+
+  // 评论 + 理由：理由在前，尾块在后。
+  const withReason = resolvePlanApprovalFeedbackAnswer("按这个方向改", comments);
+  assert.equal(parsePromptConversationSelections(withReason).visibleContent, "按这个方向改");
+
+  // 残留草稿里的批准值不能带评论通过：答案被改写成纯反馈。
+  const staleApprove = resolvePlanApprovalFeedbackAnswer(PLAN_APPROVAL_APPROVE_VALUE, comments);
+  assert.equal(parsePromptConversationSelections(staleApprove).visibleContent, "");
+  assert.deepEqual(parseBlockItem(staleApprove), [
+    { text: "第二步重试两次没必要", comment: "改成一次性调用" },
+  ]);
+});
+
+test("计划确认：没有评论时批准与空答案语义完全不变", () => {
+  assert.equal(resolvePlanApprovalFeedbackAnswer(PLAN_APPROVAL_APPROVE_VALUE, []), "approve");
+  assert.equal(resolvePlanApprovalFeedbackAnswer("", []), "");
+  assert.equal(resolvePlanApprovalFeedbackAnswer("原地改", []), "原地改");
+});
+
+test("引用变更广播：写入与移除都通知同一 scope（composer 与确认卡片共用）", () => {
+  const events = [];
+  const originalWindow = globalThis.window;
+  globalThis.window = { dispatchEvent: (event) => events.push(event) };
+  try {
+    const reference = createConversationSelectionReference({
+      contentType: "markdown",
+      sourceKey: "plan:s1:t1",
+      sourceTitle: "计划",
+      text: "选中的计划段落",
+      comment: "这里要改",
+    });
+    setConversationSelectionReferenceScope("s1", "/ws", [reference]);
+    setConversationSelectionReferenceScope("s1", "/ws", []);
+    assert.equal(events.length, 2);
+    assert.equal(events[0].type, getConversationSelectionChangeEventName());
+    assert.ok(isConversationSelectionChangeEvent(events[0]));
+    assert.deepEqual(events[0].detail, { sessionId: "s1", workspaceKey: "/ws" });
+    assert.deepEqual(events[1].detail, { sessionId: "s1", workspaceKey: "/ws" });
+  } finally {
+    globalThis.window = originalWindow;
+  }
 });

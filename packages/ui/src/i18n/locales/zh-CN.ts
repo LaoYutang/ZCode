@@ -4640,6 +4640,8 @@ const zhCN: Record<string, string> = {
   "chat.elicitation.collapseDialog": "折叠问题弹窗",
   "chat.elicitation.planApproval.approve": "批准",
   "chat.elicitation.planApproval.approveDescription": "退出计划模式并开始实施。",
+  "chat.elicitation.planApproval.pendingComments":
+    "{count} 条评论将随本次修改意见发送；移除评论后才能直接批准计划。",
   "chat.askQuestion.asking": "正在询问",
   "chat.askQuestion.asked": "已询问",
   "chat.askQuestion.questionsCount": "{count} 个问题",

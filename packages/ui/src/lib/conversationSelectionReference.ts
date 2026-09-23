@@ -38,11 +38,15 @@ export type ConversationSelectionDisplayReference =
   | ConversationSelectionText
   | ConversationSelectionReference;
 
-interface ConversationSelectionAddEventDetail {
+interface ConversationSelectionAddRequest {
   targetSessionId: string | null;
   workspaceKey: string;
   reference: ConversationSelectionReference;
-  result?: ConversationSelectionAppendResult;
+}
+
+interface ConversationSelectionChangeDetail {
+  sessionId: string | null;
+  workspaceKey: string;
 }
 
 export type ConversationSelectionLimitReason = "count" | "single" | "total";
@@ -54,10 +58,11 @@ type ConversationSelectionAppendResult =
     }
   | { ok: false; reason: ConversationSelectionLimitReason };
 
-const ADD_EVENT = "zcode:conversation-selection-add";
+const CHANGE_EVENT = "zcode:conversation-selection-change";
 const USER_SELECT_BLOCK_PATTERN = /(?:\n\n)?# userselect:\n```userselect\n([\s\S]*?)\n```\s*$/;
 const LEGACY_BLOCK_PATTERN =
   /(?:\n\n)?# Conversation selections:\n```zcode-conversation-selections\n([\s\S]*?)\n```\s*$/;
+const EMPTY_SELECTION_REFERENCES: readonly ConversationSelectionReference[] = [];
 const referencesByScope = new Map<string, readonly ConversationSelectionReference[]>();
 const limitReasonByScope = new Map<string, ConversationSelectionLimitReason>();
 
@@ -65,11 +70,25 @@ function referenceScopeKey(sessionId: string | null, workspaceKey: string): stri
   return `${workspaceKey}\0${sessionId ?? "__draft__"}`;
 }
 
+/**
+ * 引用是跨组件共享的事实（composer 与计划确认卡片会同时挂载，后者出现时前者只是被隐藏），
+ * 因此所有写入都必须广播：订阅方各自持有渲染用的本地副本，只有这条通知能让它们保持一致。
+ */
+function notifyConversationSelectionChange(sessionId: string | null, workspaceKey: string): void {
+  window.dispatchEvent(
+    new CustomEvent<ConversationSelectionChangeDetail>(CHANGE_EVENT, {
+      detail: { sessionId, workspaceKey },
+    }),
+  );
+}
+
 export function getConversationSelectionReferenceScope(
   sessionId: string | null,
   workspaceKey: string,
 ): readonly ConversationSelectionReference[] {
-  return referencesByScope.get(referenceScopeKey(sessionId, workspaceKey)) ?? [];
+  return (
+    referencesByScope.get(referenceScopeKey(sessionId, workspaceKey)) ?? EMPTY_SELECTION_REFERENCES
+  );
 }
 
 export function setConversationSelectionReferenceScope(
@@ -81,6 +100,7 @@ export function setConversationSelectionReferenceScope(
   if (references.length > 0) referencesByScope.set(key, references);
   else referencesByScope.delete(key);
   limitReasonByScope.delete(key);
+  notifyConversationSelectionChange(sessionId, workspaceKey);
 }
 
 export function getConversationSelectionReferenceLimitReason(
@@ -96,6 +116,7 @@ export function clearConversationSelectionReferenceScope(
 ): void {
   referencesByScope.delete(referenceScopeKey(sessionId, workspaceKey));
   limitReasonByScope.delete(referenceScopeKey(sessionId, workspaceKey));
+  notifyConversationSelectionChange(sessionId, workspaceKey);
 }
 
 export function clearConversationSelectionReferenceLimitReason(
@@ -229,7 +250,7 @@ function parseConversationSelectionBlock<T extends ConversationSelectionDisplayR
 }
 
 export function dispatchConversationSelectionAdd(
-  detail: Omit<ConversationSelectionAddEventDetail, "result">,
+  detail: ConversationSelectionAddRequest,
 ): ConversationSelectionAppendResult {
   const current = getConversationSelectionReferenceScope(
     detail.targetSessionId,
@@ -247,19 +268,21 @@ export function dispatchConversationSelectionAdd(
       referenceScopeKey(detail.targetSessionId, detail.workspaceKey),
       result.reason,
     );
+    // 被拒也广播：限流提示是订阅方（composer）要显示的共享事实，写入路径的成功分支
+    // 已经由 setConversationSelectionReferenceScope 广播，这里只补失败分支，避免重复通知。
+    notifyConversationSelectionChange(detail.targetSessionId, detail.workspaceKey);
   }
-  window.dispatchEvent(new CustomEvent(ADD_EVENT, { detail: { ...detail, result } }));
   return result;
 }
 
-export function isConversationSelectionAddEvent(
+export function isConversationSelectionChangeEvent(
   event: Event,
-): event is CustomEvent<ConversationSelectionAddEventDetail> {
-  return event.type === ADD_EVENT && event instanceof CustomEvent;
+): event is CustomEvent<ConversationSelectionChangeDetail> {
+  return event.type === CHANGE_EVENT && event instanceof CustomEvent;
 }
 
-export function getConversationSelectionAddEventName(): string {
-  return ADD_EVENT;
+export function getConversationSelectionChangeEventName(): string {
+  return CHANGE_EVENT;
 }
 
 function isConversationSelectionText(value: unknown): value is ConversationSelectionText {

@@ -15,7 +15,9 @@ import {
   useZCodeSessionStore,
 } from "@/store/zcodeSessionStore.js";
 import type { ElicitationFormDraft } from "@/store/zcodeSessionStoreTypes.js";
+import { resolveWorkspaceStateKey } from "@/store/zcodeSessionStoreSelectors.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
+import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
 import { sendInteractionAutoResolutionSnooze } from "@/v4/interactionAutoResolutionCommand.js";
 import {
@@ -95,6 +97,13 @@ export function V4InteractionDialogs({
   const clearWorkspaceHookReview = useWorkspaceHookReviewStore((state) => state.clear);
   const platform = useOptionalPlatform();
   const { intl } = useZCodeIntl();
+  // 计划待确认期间 composer 被隐藏，它的待发引用要在这里可见、可移除、可消费：
+  // 这两个消费方共用同一份 scope（键规则与 composer 一致），靠引用变更广播保持一致。
+  const workspaceKey = resolveWorkspaceStateKey(workspacePath, workspaceIdentity);
+  const {
+    references: pendingSelectionReferences,
+    removeReference: removePendingSelectionReference,
+  } = useConversationSelectionReferences({ sessionId, workspaceKey });
   // task 切换时 sessionId 会先更新，旧 task snapshot 可能再保留一帧。
   // 若直接使用旧 snapshot，会把当前 task 的 renderer-local 问答草稿误判为过期并清理。
   const currentSnapshot = getCurrentSessionInteractionSnapshot(sessionId, snapshot);
@@ -354,6 +363,12 @@ export function V4InteractionDialogs({
         initialFormDraft={localElicitationDraft}
         onFormDraftChange={persistElicitationDraft}
         autoResolution={isAskUserQuestion ? pending.autoResolution : undefined}
+        {...(isExitPlanMode
+          ? {
+              pendingSelectionReferences,
+              onRemovePendingSelectionReference: removePendingSelectionReference,
+            }
+          : {})}
         onFirstInteraction={
           isAskUserQuestion
             ? (source) => {
@@ -370,6 +385,8 @@ export function V4InteractionDialogs({
             : undefined
         }
         onRespond={(_requestId, action, content) => {
+          // 冻结本次提交携带的引用：确认等待期间新加的引用属于下一次消息，不能被这次清理带走。
+          const submittedReferences = isExitPlanMode ? pendingSelectionReferences : [];
           void resolveInteraction(pending.interactionId, {
             action,
             ...(content ? { content } : {}),
@@ -377,6 +394,10 @@ export function V4InteractionDialogs({
             if (!accepted) return;
             removeElicitationDraft(pending.interactionId);
             if (isExitPlanMode) {
+              // 反馈已经被 steer 成真实 user message，这里的引用完成消费，不再随下一条消息重复发送。
+              submittedReferences.forEach((reference) =>
+                removePendingSelectionReference(reference.id),
+              );
               // Plan 回执 ACK 与 replayable pending 清场是两条异步路径。
               // 这里只上报已接受的 Plan interaction，由手机 pane 在仍读到旧权威状态时触发恢复。
               onPlanInteractionAccepted?.(pending.interactionId);

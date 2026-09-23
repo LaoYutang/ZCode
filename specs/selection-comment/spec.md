@@ -85,12 +85,35 @@ pointerdown(评论) → preventDefault（保住选区）
 - `sourceKey = plan:<parentSessionId>:<toolCallId>`（稳定、可去重）；`sourceTitle` 依次取计划标题（`getPlanDirectoryTitle`）、计划文件标签（`getPlanFileLabel`）、兜底「计划」；`path = tab.planFilePath`（存在时发给模型，缺省则只发正文）。
 - 冻结范围键只随 `sourceKey`/`path` 变化，不随计划正文变化：计划正文来自 live 投影，流式期间每次增量都重建 scope 会把刚建立的选区快照丢掉。
 
+### 九、计划待确认期间：评论即修改意见
+
+计划待确认（该对话存在挂起的 `plan_approval` 交互）时，composer 是阻塞态：`ConversationComposer` 只把它从视觉上隐藏（`display: none`，保留挂载以免丢草稿）。此前「评论」入口仍可用，于是引用被写进 composer 的作用域却没有任何可见位置，也不参与对计划的答复（答复走 `resolveInteraction`，不读引用），只会在确认结束后静默跟随下一条 composer 消息发出。本节把它收敛成一条明确路径。
+
+- **作用域**：本节规则作用于该对话（`sessionId` + `workspaceKey`）内的待发引用，不区分来源表面（计划 tab / 文件预览 / 会话时间线都算）——它们本来就是「下一条消息」的同一份引用集合。
+- **可见**：只要该对话有待发引用，计划确认卡片就必须列出它们（复用 `ConversationSelectionReferenceChip`）并支持逐条移除。确认期间 composer 不可见，移除入口不能只存在于 composer，否则「批准被隐藏」会把用户锁死。
+- **有评论则不给批准**：`plan_approval` 的批准选项（`value === "approve"`）在该对话存在待发引用时不再渲染；想直接批准必须先移除评论。历史 `answerDrafts` 里残留的批准值一并作废，不能因为选项被隐藏就退化成自定义答案提交。
+- **只有评论就是按评论修改计划**：提交时把待发引用序列化成 `# userselect:` 尾块（复用 `buildPromptWithConversationSelections`）作为答复文本：
+  - 用户填了理由 → `理由 + 尾块`；没有填理由 → 尾块本身，**不再**走「空答案 = 拒绝并停 turn」（`turnControl.stopTurnAfterResult`）那条分支。
+  - 两种情况在 CLI 侧都落进既有 `plan_approval_feedback` 通道（非空且不等于批准值 → deny + 反馈升级为真实 user message），模型据此修订计划。
+  - 兜底：有评论时即使答案等于批准值（残留草稿等）也按本规则改写，不存在「带评论批准」。
+- **消费即清理**：提交被接受后只移除本次冻结的引用（与 composer 发送同一冻结语义）；提交失败或被拒则保留。
+- **回归边界**：没有待发引用时，批准、空答案自动批准与 AskUserQuestion 语义与本节引入前完全一致。
+
+所有者与同步：
+
+- 引用数组仍由 `conversationSelectionReference.ts` 的 `referencesByScope` 独占；新增**变更广播**（`conversation-selection-change`），所有订阅者（composer 与计划确认卡片）只通过它同步，不各自维护副本。这条广播是必需的：确认期间两个消费方同时挂载（composer 仅被隐藏），任一侧的新增/移除都必须让另一侧立刻看到。
+
+非目标（本节）：不覆盖 legacy 权限卡片形态的计划审批（`PermissionDialog` 的 switch-mode / `allowOnce` 分支）。当前 Agent 的 ExitPlanMode 由 v4 投影成 `userInput` + `schema.interaction === "plan_approval"`，UI 侧只经过 `ElicitationDialog`；该形态恢复时另立规则。
+
 ## 唯一所有者
 
 | 事实                                     | 所有者                                                                         |
 | ---------------------------------------- | ------------------------------------------------------------------------------ |
 | 引用数组（按 workspace + session scope） | `packages/ui/src/lib/conversationSelectionReference.ts` 的 `referencesByScope` |
 | 引用写入路径                             | `dispatchConversationSelectionAdd`（唯一）                                     |
+| 引用变更广播                             | 同上文件的 `setConversationSelectionReferenceScope`（唯一的通知出口）          |
+| 计划确认的批准/反馈规则                  | `packages/ui/src/lib/planApproval.ts`（批准选项收窄 + 反馈文本组装）           |
+| 计划确认卡片的提交与冻结清理             | `packages/ui/src/v4/V4InteractionDialogs.tsx` 的 `plan_approval` 分支          |
 | 尾块格式、解析、键校验、预算、去重       | 同上文件（唯一）                                                               |
 | 序列化/反序列化顺序                      | `packages/ui/src/v4/composer/composerPromptContexts.ts`                        |
 | 实时选区生命周期                         | `packages/ui/src/hooks/useTextSelection.ts`                                    |
@@ -102,15 +125,17 @@ pointerdown(评论) → preventDefault（保住选区）
 
 ## 失败语义
 
-| 情况                     | 表现                                                            |
-| ------------------------ | --------------------------------------------------------------- |
-| 选区超过单条上限         | 只显示上限提示，无「评论」入口                                  |
-| 评论为空或仅空白         | 提交后只有引文；引用对象与尾块 item 都没有 `comment` 键         |
-| 引用条数或总量超限       | 写入被拒，按既有 `limitReason` 给出 count/total 提示；草稿丢弃  |
-| 输入态中点击外部 / Esc   | 浮层关闭，输入区不新增 pill                                     |
-| 输入态中点击浮层空白处   | 焦点离开输入框但浮层保持打开，快捷键仍生效（键位挂在 document） |
-| 输入态中会话或作用域切换 | 浮层关闭，草稿不入队                                            |
-| 旧版客户端读新版历史     | 严格键集解析失败 → 尾块原文进入气泡（仅外观，见「非目标」）     |
+| 情况                       | 表现                                                            |
+| -------------------------- | --------------------------------------------------------------- |
+| 选区超过单条上限           | 只显示上限提示，无「评论」入口                                  |
+| 评论为空或仅空白           | 提交后只有引文；引用对象与尾块 item 都没有 `comment` 键         |
+| 引用条数或总量超限         | 写入被拒，按既有 `limitReason` 给出 count/total 提示；草稿丢弃  |
+| 输入态中点击外部 / Esc     | 浮层关闭，输入区不新增 pill                                     |
+| 输入态中点击浮层空白处     | 焦点离开输入框但浮层保持打开，快捷键仍生效（键位挂在 document） |
+| 输入态中会话或作用域切换   | 浮层关闭，草稿不入队                                            |
+| 计划待确认且有评论时想批准 | 没有批准入口：先移除评论才能直接批准                            |
+| 计划确认提交失败或被拒     | 评论保留在该作用域，不清空                                      |
+| 旧版客户端读新版历史       | 严格键集解析失败 → 尾块原文进入气泡（仅外观，见「非目标」）     |
 
 ## 非目标
 
@@ -135,6 +160,8 @@ pointerdown(评论) → preventDefault（保住选区）
 10. 从计划卡片点「查看完整计划」进入计划 tab：选中计划正文出现「评论」入口，提交后 pill 出现在**该计划所属对话**的输入区（而非其它对话），hover 可见引文、评论与计划来源。
 11. 计划 tab 与文件预览同时开着时，各自选区只触发自己表面的入口，互不串扰；切到别的对话后计划 tab 不可见（可见性由 `parentSessionId` 收窄，非本 spec 引入）。
 12. 暗色主题下打开评论浮层：引文、输入的文字与快捷键提示都清晰可读，不出现 UA 默认黑色文本；输入区没有占位提示行，输入框仍有可访问名称。
+13. 计划待确认时在计划 tab 评论：确认卡片列出这条评论，批准选项消失；不填理由直接提交 → 模型收到的用户消息是 `# userselect:` 尾块（含引文与评论），据此修订计划；提交后该评论从输入区消失，不会随下一条消息重复发送。
+14. 在确认卡片上移除评论 → 批准选项恢复，composer 重新出现时也没有该 pill；无评论时整套计划确认行为（批准、空答案自动批准、AskUserQuestion）与本节引入前一致。
 
 ## 测试
 
@@ -143,4 +170,6 @@ pointerdown(评论) → preventDefault（保住选区）
 - 真机交互仍按验收场景 1–6、9–12 在 `pnpm dev:desktop` 下人工核对（视觉、鼠标/触控命中、真实选区行为不在 DOM 替身覆盖范围内）；仓库不为此新增 E2E 框架。场景 12 是纯样式约束（前景色、无占位提示），同样随人工核对。
 - 计划 tab 的链路按与预览侧相同的方式验证过一轮（同一份临时 jsdom 脚本，已删除）：按 `PlanDetailSidePane` 的同一组表达式与同一批真实模块组装表面，断言单一「评论」入口、自动聚焦、输入态冻结，以及提交后写入**计划所属对话**（`parentSessionId` + identity 规则算出的 workspaceKey）的 markdown 引用带 `sourceKey`/标题/计划文件路径，且不落进其它对话的 scope。同一脚本还把计划表面与预览表面同时挂载，验证同一时刻只出现一个工具条、各自只写入自己的 `sourceKey`（场景 11）。计划页自身依赖会话投影（需要平台服务），因此该脚本不渲染真实 pane 组件，这一步由人工核对。
 - 计划来源的纯函数（`resolvePlanSelectionSource`：身份不随正文漂移、标题回退链、无文件时不写 `path`）已作为常驻用例并入同一测试文件。
+- 计划确认的批准/反馈规则同样是纯函数（`packages/ui/src/lib/planApproval.ts`：有评论时收窄批准选项、把待发引用组装成反馈文本、有评论时批准值被改写），并入同一测试文件；卡片内的键盘路径（Tab/↑↓/Enter/Ctrl+Enter、空答案提交）与冻结清理依赖 React 渲染，按既有做法人工核对（场景 13/14）。
+- 引用变更广播（`conversation-selection-change`）的跨组件同步同样只能靠渲染验证：仓库没有 DOM 测试依赖，由场景 14 的人工核对覆盖。
 - 必须执行 `pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、`pnpm architecture:check --changed`，并如实报告结果。

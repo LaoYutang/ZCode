@@ -16,7 +16,14 @@ import { cn } from "@/components/lib/utils.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { InteractionRequestOriginBadge } from "@/InteractionRequestOriginBadge.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
+import type { ConversationSelectionReference } from "@/lib/conversationSelectionReference.js";
+import {
+  PLAN_APPROVAL_APPROVE_VALUE,
+  resolvePlanApprovalFeedbackAnswer,
+  resolvePlanApprovalOptions,
+} from "@/lib/planApproval.js";
 import type { ElicitationFormDraft } from "@/store/zcodeSessionStoreTypes.js";
+import { ConversationSelectionReferenceChip } from "@/v4/composer/ConversationSelectionReferenceChip.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
 
 interface ElicitationDialogProps {
@@ -33,12 +40,18 @@ interface ElicitationDialogProps {
   ) => boolean | void | Promise<boolean | void>;
   initialFormDraft?: ElicitationFormDraft;
   onFormDraftChange?: (requestId: string, draft: ElicitationFormDraft) => void;
+  /**
+   * 该对话当前待发的选区引用（计划待确认期间由宿主注入）。计划审批用它们表达「改计划」：
+   * 有评论时批准入口收窄，提交即按评论修改计划。
+   */
+  pendingSelectionReferences?: readonly ConversationSelectionReference[];
+  onRemovePendingSelectionReference?: (id: string) => void;
 }
 
 type ElicitationAutoResolutionSnoozeSource = "panelHover" | "answer" | "navigation" | "countdown";
 
 const ELICITATION_FINAL_MINUTE_MS = 60_000;
-const PLAN_APPROVAL_APPROVE_VALUE = "approve";
+const EMPTY_SELECTION_REFERENCES: readonly ConversationSelectionReference[] = [];
 
 function getElicitationCountdownSeconds(
   autoResolution: InteractionAutoResolution | undefined,
@@ -159,6 +172,7 @@ function resolveElicitationCustomInputKeyAction(event: {
 
 function normalizeElicitationQuestions(
   request: ZCodeElicitationRequest,
+  options: { hidePlanApprovalApprove?: boolean } = {},
 ): NormalizedElicitationQuestion[] {
   const sourceQuestions =
     request.questions && request.questions.length > 0
@@ -176,11 +190,14 @@ function normalizeElicitationQuestions(
     key: `${index}:${question.question}`,
     question: question.question,
     header: question.header,
-    options: question.options.map((option) => ({
-      value: option.value,
-      label: option.label || option.value,
-      description: option.description,
-    })),
+    options: resolvePlanApprovalOptions(
+      question.options.map((option) => ({
+        value: option.value,
+        label: option.label || option.value,
+        description: option.description,
+      })),
+      options.hidePlanApprovalApprove === true,
+    ),
     ...(question.multiSelect ? { multiSelect: true } : {}),
   }));
 }
@@ -199,11 +216,15 @@ function isPlanApprovalElicitationRequest(request: ZCodeElicitationRequest): boo
 function createInitialElicitationDrafts(
   questions: readonly NormalizedElicitationQuestion[],
   request: ZCodeElicitationRequest,
+  droppedOptionValues: readonly string[] = [],
 ): DraftState {
   return Object.fromEntries(
     questions.map((question, index) => {
-      const draftValues =
+      const rawDraftValues =
         request.answerDrafts?.[`answer_${index}`] ?? request.answerDrafts?.[String(index)] ?? [];
+      // 被收窄掉的选项值（有评论时的批准值）从草稿里一并作废：它已不在选项集里，
+      // 留着会被当成自定义答案提交出去。
+      const draftValues = rawDraftValues.filter((value) => !droppedOptionValues.includes(value));
       const optionValues = new Set(question.options.map((option) => option.value));
       const selectedValues = draftValues.filter((value) => optionValues.has(value));
       const customAnswer = draftValues.filter((value) => !optionValues.has(value)).join(", ");
@@ -256,31 +277,44 @@ function getPreferredActiveOptionIndex(
   return -1;
 }
 
-function getQuestionAnswers(question: NormalizedElicitationQuestion, drafts: DraftState): string[] {
+function getQuestionAnswers(
+  question: NormalizedElicitationQuestion,
+  drafts: DraftState,
+  transformAnswer?: (answer: string) => string,
+): string[] {
   const draft = drafts[question.key] ?? {
     selectedValues: [],
     customAnswer: "",
   };
   const customAnswer = draft.customAnswer.trim();
+  if (transformAnswer && !question.multiSelect) {
+    // 计划审批的答案是单条文本且可能被整体改写（有评论时「只有评论就是修改意见」，
+    // 空答案也要产出尾块），所以先拼成一条文本再转换；多选保持数组语义不变。
+    const transformed = transformAnswer(
+      [...draft.selectedValues, ...(customAnswer ? [customAnswer] : [])].join(", "),
+    ).trim();
+    return transformed ? [transformed] : [];
+  }
   return [...draft.selectedValues, ...(customAnswer ? [customAnswer] : [])];
 }
 
 function buildElicitationResponseContent(
   questions: readonly NormalizedElicitationQuestion[],
   drafts: DraftState,
+  transformAnswer?: (answer: string) => string,
 ): Record<string, unknown> {
   // AskUserQuestion 是可选澄清，不是必填表单。只提交用户真实提供的答案，
   // 避免用空字符串伪造偏好；部分或空 answers 由 Agent 使用最佳判断继续。
   const answers = Object.fromEntries(
     questions.flatMap((question) => {
-      const questionAnswers = getQuestionAnswers(question, drafts);
+      const questionAnswers = getQuestionAnswers(question, drafts, transformAnswer);
       return questionAnswers.length > 0 ? [[question.question, questionAnswers.join(", ")]] : [];
     }),
   );
   const content: Record<string, unknown> = { answers };
 
   questions.forEach((question, index) => {
-    const questionAnswers = getQuestionAnswers(question, drafts);
+    const questionAnswers = getQuestionAnswers(question, drafts, transformAnswer);
     if (questionAnswers.length > 0) {
       content[`answer_${index}`] = question.multiSelect ? questionAnswers : questionAnswers[0];
     }
@@ -289,7 +323,7 @@ function buildElicitationResponseContent(
   // 兼容旧版单题 agent 读取 { answer } 的路径。
   const onlyQuestion = questions.length === 1 ? questions[0] : undefined;
   if (onlyQuestion) {
-    const questionAnswers = getQuestionAnswers(onlyQuestion, drafts);
+    const questionAnswers = getQuestionAnswers(onlyQuestion, drafts, transformAnswer);
     if (questionAnswers.length > 0) {
       content.answer = onlyQuestion.multiSelect ? questionAnswers : questionAnswers[0];
     }
@@ -343,17 +377,32 @@ function ElicitationDialogContent({
   onFirstInteraction,
   initialFormDraft,
   onFormDraftChange,
+  pendingSelectionReferences,
+  onRemovePendingSelectionReference,
 }: ElicitationDialogProps) {
   const { intl } = useZCodeIntl();
-  const questions = useMemo(() => normalizeElicitationQuestions(request), [request]);
+  const isPlanApproval = isPlanApprovalElicitationRequest(request);
+  // 只有计划审批消费待发评论：普通问答与权限问答和选区引用无关。
+  const planApprovalComments = isPlanApproval
+    ? (pendingSelectionReferences ?? EMPTY_SELECTION_REFERENCES)
+    : EMPTY_SELECTION_REFERENCES;
+  const hasPendingComments = planApprovalComments.length > 0;
+  const questions = useMemo(
+    () => normalizeElicitationQuestions(request, { hidePlanApprovalApprove: hasPendingComments }),
+    [hasPendingComments, request],
+  );
   const [questionIndex, setQuestionIndex] = useState(
     () => initialFormDraft?.questionIndex ?? normalizeInitialQuestionIndex(request, questions),
   );
-  const [activeOptionIndex, setActiveOptionIndex] = useState(() =>
-    isPlanApprovalElicitationRequest(request) ? 0 : -1,
-  );
+  const [activeOptionIndex, setActiveOptionIndex] = useState(() => (isPlanApproval ? 0 : -1));
   const [drafts, setDrafts] = useState<DraftState>(
-    () => initialFormDraft?.drafts ?? createInitialElicitationDrafts(questions, request),
+    () =>
+      initialFormDraft?.drafts ??
+      createInitialElicitationDrafts(
+        questions,
+        request,
+        hasPendingComments ? [PLAN_APPROVAL_APPROVE_VALUE] : [],
+      ),
   );
   const [isQuestionExpanded, setIsQuestionExpanded] = useState(false);
   const [isDialogExpanded, setIsDialogExpanded] = useState(true);
@@ -398,7 +447,6 @@ function ElicitationDialogContent({
   const currentDraft = currentQuestion
     ? (drafts[currentQuestion.key] ?? { selectedValues: [], customAnswer: "" })
     : undefined;
-  const isPlanApproval = isPlanApprovalElicitationRequest(request);
 
   useEffect(() => {
     if (getQuestionOptionCount(currentQuestion) === 0 || activeOptionIndex < 0) {
@@ -446,12 +494,23 @@ function ElicitationDialogContent({
     [reportFirstInteraction, updateDraft],
   );
 
+  // 计划审批的答案统一过一遍反馈组装：没有评论时原样返回（既有语义不变），
+  // 有评论时「只有评论就是按评论修改计划」。
+  const transformPlanApprovalAnswer = useCallback(
+    (answer: string) => resolvePlanApprovalFeedbackAnswer(answer, planApprovalComments),
+    [planApprovalComments],
+  );
+
   const submitWithDrafts = useCallback(
     (nextDrafts: DraftState) => {
-      const content = buildElicitationResponseContent(questions, nextDrafts);
+      const content = buildElicitationResponseContent(
+        questions,
+        nextDrafts,
+        isPlanApproval ? transformPlanApprovalAnswer : undefined,
+      );
       onRespond(request.requestId, "accept", content);
     },
-    [onRespond, questions, request.requestId],
+    [isPlanApproval, onRespond, questions, request.requestId, transformPlanApprovalAnswer],
   );
 
   const advanceFromQuestion = useCallback(
@@ -557,6 +616,12 @@ function ElicitationDialogContent({
       currentQuestion &&
       getQuestionAnswers(currentQuestion, drafts).length === 0
     ) {
+      // 只有评论时就是按评论修改计划：批准入口已被收窄，空答案不能再走
+      // 「无反馈的拒绝」（CLI 侧那条会停 turn 等用户说话），直接把评论作为反馈提交。
+      if (hasPendingComments) {
+        submitWithDrafts(drafts);
+        return;
+      }
       const approveOption = currentQuestion.options.find(
         (option) => option.value === PLAN_APPROVAL_APPROVE_VALUE,
       );
@@ -578,9 +643,11 @@ function ElicitationDialogContent({
     currentQuestion,
     drafts,
     getDraftsWithAutoSelectedOption,
+    hasPendingComments,
     isPlanApproval,
     reportFirstInteraction,
     selectOption,
+    submitWithDrafts,
   ]);
 
   const moveSelection = useCallback(
@@ -1074,6 +1141,25 @@ function ElicitationDialogContent({
 
             {currentQuestion ? (
               <div className="space-y-3">
+                {hasPendingComments ? (
+                  // 确认期间 composer 是被隐藏的（阻塞交互态），引用必须在这里可见可移除，
+                  // 否则「批准被收窄」加上「评论只在隐藏的输入区里」会把用户锁死。
+                  <div
+                    data-plan-approval-pending-comments={planApprovalComments.length}
+                    className="space-y-2 rounded-lg border border-border bg-surface px-2.5 py-2"
+                  >
+                    <p className="text-ui-base text-foreground-subtle">
+                      {intl.formatMessage(
+                        { id: "chat.elicitation.planApproval.pendingComments" },
+                        { count: String(planApprovalComments.length) },
+                      )}
+                    </p>
+                    <ConversationSelectionReferenceChip
+                      references={planApprovalComments}
+                      onRemove={onRemovePendingSelectionReference}
+                    />
+                  </div>
+                ) : null}
                 <div
                   role={currentQuestion.multiSelect ? "group" : "listbox"}
                   aria-label={titleQuestion}

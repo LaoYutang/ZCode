@@ -4788,6 +4788,8 @@ const enUS: Record<string, string> = {
   "chat.elicitation.collapseDialog": "Collapse question dialog",
   "chat.elicitation.planApproval.approve": "Approve",
   "chat.elicitation.planApproval.approveDescription": "Exit plan mode and start implementation.",
+  "chat.elicitation.planApproval.pendingComments":
+    "{count} comment(s) will be sent with this revision request; remove them to approve the plan.",
   "chat.askQuestion.asking": "Asking questions",
   "chat.askQuestion.asked": "Asked",
   "chat.askQuestion.questionsCount": "{count} questions",

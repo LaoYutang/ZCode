@@ -3,8 +3,8 @@ import {
   clearConversationSelectionReferenceLimitReason,
   getConversationSelectionReferenceScope,
   getConversationSelectionReferenceLimitReason,
-  getConversationSelectionAddEventName,
-  isConversationSelectionAddEvent,
+  getConversationSelectionChangeEventName,
+  isConversationSelectionChangeEvent,
   setConversationSelectionReferenceScope,
   type ConversationSelectionLimitReason,
   type ConversationSelectionReference,
@@ -48,10 +48,12 @@ export function useConversationSelectionReferences(options: {
   );
 
   useEffect(() => {
-    const handleAdd = (event: Event) => {
-      if (!isConversationSelectionAddEvent(event)) return;
+    // 订阅的是变更广播而不是「新增」事件：同一个 scope 可能有多个挂载中的消费方
+    // （例如计划确认期间被隐藏的 composer 与确认卡片），任一方的写入或移除都要让另一方看到。
+    const handleChange = (event: Event) => {
+      if (!isConversationSelectionChangeEvent(event)) return;
       if (
-        event.detail.targetSessionId !== options.sessionId ||
+        event.detail.sessionId !== options.sessionId ||
         event.detail.workspaceKey !== options.workspaceKey
       ) {
         return;
@@ -63,8 +65,9 @@ export function useConversationSelectionReferences(options: {
         getConversationSelectionReferenceLimitReason(options.sessionId, options.workspaceKey),
       );
     };
-    window.addEventListener(getConversationSelectionAddEventName(), handleAdd);
-    return () => window.removeEventListener(getConversationSelectionAddEventName(), handleAdd);
+    window.addEventListener(getConversationSelectionChangeEventName(), handleChange);
+    return () =>
+      window.removeEventListener(getConversationSelectionChangeEventName(), handleChange);
   }, [options.sessionId, options.workspaceKey]);
 
   const removeReference = useCallback(
