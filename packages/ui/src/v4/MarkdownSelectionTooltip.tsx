@@ -29,6 +29,7 @@ export function MarkdownSelectionTooltip({
   sourceKey,
   sourceTitle,
   sourcePath,
+  planText,
   target,
   scopeKey,
 }: {
@@ -37,6 +38,8 @@ export function MarkdownSelectionTooltip({
   sourceKey: string;
   sourceTitle: string;
   sourcePath?: string;
+  /** 引用所在文档的正文快照（计划 tab 传整份计划）：只给 path 时模型不会主动去读文件。 */
+  planText?: string;
   target: MarkdownSelectionTarget;
 }) {
   const { intl } = useZCodeIntl();
@@ -80,6 +83,8 @@ export function MarkdownSelectionTooltip({
     () => (sideKey ? getSelectionSideChatOpenState(sideKey) : "unavailable"),
     () => "unavailable",
   );
+  // 计划正文快照随引用进尾块：辅助对话的 fork 历史只到上一轮，模型不会主动按 path 读文件。
+  const planField = planText ? { plan: planText } : {};
 
   if (commentDraft) {
     return (
@@ -97,6 +102,7 @@ export function MarkdownSelectionTooltip({
               sourceTitle,
               path: sourcePath,
               text: commentDraft.text,
+              ...planField,
               ...(trimmedComment ? { comment: trimmedComment } : {}),
             }),
           });
@@ -119,6 +125,7 @@ export function MarkdownSelectionTooltip({
       sourceTitle,
       path: sourcePath,
       text: state.text,
+      ...planField,
     });
   return (
     <SelectionActionMenu

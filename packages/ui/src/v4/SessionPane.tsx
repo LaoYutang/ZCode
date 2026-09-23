@@ -47,6 +47,7 @@ import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import { buildChatSessionScrollMemoryKey } from "@/lib/chatSessionScrollMemory.js";
+import { resolveSelectionInteractionBlocked } from "@/lib/planApproval.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
@@ -761,6 +762,11 @@ export function SessionPane({
     snapshot?.pendingInteractions.find(
       (interaction) => interaction.payload.kind !== "workspaceHookReview",
     )?.interactionId ?? null;
+  // 选区入口（评论 / 在辅助对话中提问）的父会话阻塞判定：计划审批不算阻塞，
+  // 见 specs/selection-comment 第十节；composer 底部 dock 与子会话上报仍用 blockingInteractionId。
+  const selectionInteractionBlocked = resolveSelectionInteractionBlocked(
+    snapshot?.pendingInteractions ?? [],
+  );
   const selectionSideChatKey = sessionId
     ? buildSelectionSideChatKey(workspaceKey, sessionId)
     : null;
@@ -1584,10 +1590,10 @@ export function SessionPane({
       // 合并时曾丢弃 reference，导致 Markdown 入口只建空白副屏；复用现有引用路由。
       (reference) => handleOpenSelectionSideConversation(reference, !reference),
       focused,
-      Boolean(blockingInteractionId) || selectionSideActionBlocked,
+      selectionInteractionBlocked || selectionSideActionBlocked,
     );
   }, [
-    blockingInteractionId,
+    selectionInteractionBlocked,
     selectionSideActionBlocked,
     focused,
     handleOpenSelectionSideConversation,
@@ -3760,7 +3766,7 @@ export function SessionPane({
                 !isDraft && sessionId && !readOnly && !selectionSideChat
                   ? {
                       enabled: resolveConversationSelectionTooltipEnabled({
-                        selectionActionsEnabled: focused && !blockingInteractionId,
+                        selectionActionsEnabled: focused && !selectionInteractionBlocked,
                       }),
                       sideActionDisabled: selectionSideActionBlocked,
                       onAddToCurrentTask: handleAddSelectionToCurrentTask,

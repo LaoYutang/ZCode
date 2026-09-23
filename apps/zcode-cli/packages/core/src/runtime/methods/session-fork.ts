@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { resolveExecutionState, type ExecutionState } from "@zcode/shared";
 import { buildExecutionStateEntry, readRuntimeExecutionState } from "../execution-state.js";
 import {
+  resolveSelectionSideChatExecutionState,
+  selectionSideChatHistoryMessages,
+} from "../helpers/selection-side-chat-fork.js";
+import {
   createModelId,
   createModelProviderId,
   type CreateSessionInput,
@@ -600,10 +604,13 @@ async function commitAtomicConversationFork(
     .reverse()
     .find((message) => message.info.role === "assistant")?.info;
   // 保留原 stable fork 的历史权限选择，不能让新增 entry 把它覆盖成父任务当前权限。
+  // 辅助对话额外关闭 planEnabled：它是问答用途，不应接手父会话的计划流程。
   const executionState =
-    kind === "selection_side_chat" || historicalInfo?.role !== "assistant"
-      ? currentExecutionState
-      : resolveExecutionState(historicalInfo);
+    kind === "selection_side_chat"
+      ? resolveSelectionSideChatExecutionState(currentExecutionState)
+      : historicalInfo?.role !== "assistant"
+        ? currentExecutionState
+        : resolveExecutionState(historicalInfo);
   // 辅助对话明确不复制 Goal target/verifier entries，不能仍将
   // 父消息的 goalBoundary 交给 strict fork clone，否则任意 Goal 状态都会要求不存在的
   // child-local identity。只移除用于 Goal 恢复的 boundary，保留父对话正文作为模型上下文。
@@ -798,8 +805,9 @@ async function commitAtomicConversationFork(
 }
 
 /**
- * 副屏创建使用父 active transcript 的稳定落盘边界。正在生成时只保留已提交的本轮
- * real-user input，排除其后的 assistant/tool 增量；goal、queue 与阻塞运行态不复制。
+ * 副屏创建使用父 active transcript 的稳定落盘边界，且只复制到上一轮结束：正在进行的本轮
+ * 整轮不复制（user 指令与 assistant/tool 增量都不进子会话）；goal、queue、计划模式与阻塞
+ * 运行态不复制。历史边界与子会话执行状态由 selection-side-chat-fork.ts 的纯函数决定。
  */
 export async function createSelectionSideConversation(
   this: AgentRuntimeInternal,
@@ -828,24 +836,6 @@ export async function createSelectionSideConversation(
     targetMessageId,
     traceContext: options.traceContext ?? this.rootTraceContext,
   });
-}
-
-function selectionSideChatHistoryMessages(
-  activeMessages: readonly MessageWithParts[],
-  activeTurnId?: TurnId,
-): MessageWithParts[] {
-  if (!activeTurnId) return [...activeMessages];
-  const activeUserIndex = activeMessages.findIndex(
-    (message) =>
-      message.info.role === "user" &&
-      message.info.anchor?.turnId === activeTurnId &&
-      message.info.anchor.origin === "realUser",
-  );
-  if (activeUserIndex >= 0) return activeMessages.slice(0, activeUserIndex + 1);
-  const activeTurnStart = activeMessages.findIndex(
-    (message) => message.info.anchor?.turnId === activeTurnId,
-  );
-  return activeTurnStart >= 0 ? activeMessages.slice(0, activeTurnStart) : [...activeMessages];
 }
 
 export async function createForkedSession(

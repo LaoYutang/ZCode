@@ -11,7 +11,7 @@
 ### 一、单一入口：评论
 
 - 参考菜单只保留一个引用入口，标签为「评论」（`chat.selections.comment`），替代原「添加到当前任务」。原「一键引用」路径由「评论 → 直接提交」承担。
-- 「在辅助对话中提问」保持既有语义、位置与禁用条件不变：它指向另一个目的地（辅助对话），不与「评论」合并，也不因此次改动获得评论能力。
+- 「在辅助对话中提问」保持既有语义与位置：它指向另一个目的地（辅助对话），不与「评论」合并，也不因此次改动获得评论能力；它的禁用条件由第十节收敛为「存在非计划审批的挂起交互」。
 - 选区超过单条上限时仍只显示上限提示，不出现「评论」入口——不可用动作不进输入态。
 
 ### 二、评论可空，提交即入队
@@ -51,18 +51,21 @@ pointerdown(评论) → preventDefault（保住选区）
   → 恢复实时监听（enabled=true）
 ```
 
-### 五、数据模型：comment 是可选字段，不新增构造路径
+### 五、数据模型：comment 与 plan 都是可选字段，不新增构造路径
 
 - `ConversationSelectionText` 增 `comment?: string`，消息引用与 markdown 引用共用。
-- 尾块仍是 `# userselect:` + JSON 数组，item 允许第三个键 `comment`；`isConversationSelectionText` 的严格键集同步放开，否则新版历史在解析时回退成「原文可见」，整段尾块会泄漏进气泡。
+- 尾块仍是 `# userselect:` + JSON 数组，item 允许第三个键 `comment`、第四个键 `plan`；`isConversationSelectionText` 的严格键集同步放开，否则新版历史在解析时回退成「原文可见」，整段尾块会泄漏进气泡。
 - 引用 id 仍由选区手势内的 `createConversationSelectionReference` 产出一次；提交携带评论时只在该对象上补 `comment`，不新增第二个构造点、不新增写路径。
-- 序列化顺序不变：selections → code comments → web → pptx，解析严格相反。
+- `plan?: string` 是「引用所在文档的正文快照」：计划 tab 携带整份计划正文。它解决的是模型不会主动按 `path` 去读文件的问题——只给路径时，辅助对话会照着 fork 历史作答，说「这不是我上一轮说的」（见第八节）。快照仍是同一次构造的字段，不新增构造点。
+- 序列化顺序不变：selections → code comments → web → pptx，解析严格相反；item 内键序为 `{ path?, text, comment?, plan? }`。
 
 ### 六、预算与去重
 
 - **总量**预算按 `text.length + comment.length` 计：评论不能绕过 16,000 上限；评论单独过长会以既有「总计」提示被拒，不新增常量与文案。
 - **单条**上限仍只判 `text`，保持「单条引用最多 8,000 个字符」的既有语义。
-- **去重键**纳入 `comment`：同一句引文可以写两条不同评论；同文同评论仍判为重复（不新增 pill）。
+- **计划正文另计一条总量**：`Σ plan.length ≤ 20,000`（与 CLI 的 `PLAN_MODE_MAX_PLAN_CHARS` 对齐，单份计划不可能超过它）。不并入 16,000：整份计划会直接撑爆既有选段额度，而选段与文档正文是两类上下文。超限同样以既有「总计」提示被拒。
+- **去重键**纳入 `comment`、不含 `plan`：引用身份是「哪段文字 + 什么评论」，计划版本只是附加上下文；纳入 `plan` 会让同一片段在计划每次修订后都能再插一条等价 pill。
+- pill 不展示 `plan`（正文太长），它只出现在发给模型的尾块里。
 
 ### 七、展示
 
@@ -83,7 +86,8 @@ pointerdown(评论) → preventDefault（保住选区）
 - `sessionId = tab.parentSessionId`。侧栏 tab 的可见性本身就按 `parentSessionId === 当前任务` 收窄（`getVisibleSidePaneTabsByScope`），因此引用必然落回计划所属的那条对话，不存在跨会话歧义。
 - `workspaceKey = buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity)`，与 composer 的 scope key 同源（均为 `workspaceIdentity?.trim() || workspacePath` 规则），保证 pill 出现在可见输入区而不是无人渲染的 scope。
 - `sourceKey = plan:<parentSessionId>:<toolCallId>`（稳定、可去重）；`sourceTitle` 依次取计划标题（`getPlanDirectoryTitle`）、计划文件标签（`getPlanFileLabel`）、兜底「计划」；`path = tab.planFilePath`（存在时发给模型，缺省则只发正文）。
-- 冻结范围键只随 `sourceKey`/`path` 变化，不随计划正文变化：计划正文来自 live 投影，流式期间每次增量都重建 scope 会把刚建立的选区快照丢掉。
+- **`plan = 创建引用时的计划正文快照`**（`PlanDetailSideContent` 当前渲染的 markdown）。计划 tab 是唯一携带 `plan` 的表面：计划正文常只存在于 ExitPlanMode 的 tool 输入里（`planFilePath` 可能根本没有），而模型不会主动按 `path` 去读文件——只给路径时辅助对话会照着 fork 历史作答，说「这不是我上一轮说的」。快照在创建引用的那一刻取一次，之后计划再修订不影响已入队的引用。
+- 冻结范围键只随 `sourceKey`/`path` 变化，不随计划正文变化：计划正文来自 live 投影，流式期间每次增量都重建 scope 会把刚建立的选区快照丢掉。`plan` 只进引用对象，不进范围键。
 
 ### 九、计划待确认期间：评论即修改意见
 
@@ -105,6 +109,25 @@ pointerdown(评论) → preventDefault（保住选区）
 
 非目标（本节）：不覆盖 legacy 权限卡片形态的计划审批（`PermissionDialog` 的 switch-mode / `allowOnce` 分支）。当前 Agent 的 ExitPlanMode 由 v4 投影成 `userInput` + `schema.interaction === "plan_approval"`，UI 侧只经过 `ElicitationDialog`；该形态恢复时另立规则。
 
+### 十、计划待确认期间的选区提问：阻塞门禁按交互语义收窄
+
+计划待确认时该对话存在挂起的 `plan_approval` 交互，而选区入口的父会话阻塞判定取的是「第一个非 `workspaceHookReview` 的挂起交互」。于是同一时刻：计划 tab 与文件预览的「在辅助对话中提问」被禁用；会话时间线的选区菜单整条不出现；但侧栏固定入口（不带引用）与 `/side`、`/btw` 斜杠命令本来就允许在阻塞期间创建辅助对话。结果是「能开空白辅助对话，却不能带着选中的计划片段开」。
+
+规则：**计划审批不构成选区入口的阻塞。**
+
+- **阻塞判定**（唯一所有者：`resolveSelectionInteractionBlocked`，`packages/ui/src/lib/planApproval.ts`）：先剔除 `workspaceHookReview`（既有语义，不计入阻塞）；没有剩余挂起交互 → 不阻塞；剩余**全部**是计划审批 → 不阻塞；出现权限请求或其他 `userInput` → 阻塞。
+- **计划审批识别**（唯一所有者：`isPlanApprovalPendingInteraction`，同文件）：`payload.kind === "userInput"` 且 `payload.schema.interaction === "plan_approval"`。`toolName` 不参与判定：v4 侧以 `schema.interaction` 为准；legacy 形态与第九节同属非目标。
+- **三个表面用同一判定**：`SessionPane` 里注册 opener 的 `referenceBlocked` 与会话时间线的 `selectionActionsEnabled` 都改读该函数，保证计划 tab / 文件预览 / 会话正文表现一致。
+- **不变项**：辅助对话自身的挂起交互仍禁用选区提问（`selectionSideActionBlocked` → `chat.selections.sideBlocked`）；composer 底部 dock 的阻塞态（`blockingInteractionId`）与子会话的阻塞上报保持原语义。
+
+依据（为什么安全）：
+
+- 引用落点是辅助对话的 scope（`targetSessionId = childSessionId`），不写父会话 composer，因此不影响计划审批的答复语义——第九节收敛「评论即修改意见」的理由在这里不适用。
+- `createSelectionSideSession` 不带 `firstInput` 时不是输入命令（准入层只登记真正的输入），不排队、不要求父会话空闲。
+- 计划待确认期间创建 child 走既有稳定切点：fork 只保留已提交的本轮 real-user 输入，不复制 goal/queue 与阻塞运行态（`selectionSideChatHistoryMessages`）。
+
+已知行为（不是缺陷）：辅助对话的初始 transcript 不包含计划正文；引用序列化带 `path`（计划文件路径，见第八节），正文由模型按该路径自行读取，计划未落盘成文件时只有片段。
+
 ## 唯一所有者
 
 | 事实                                     | 所有者                                                                         |
@@ -122,20 +145,23 @@ pointerdown(评论) → preventDefault（保住选区）
 | 入口、标签与禁用态                       | `packages/ui/src/v4/SelectionActionMenu.tsx` + i18n                            |
 | 评论的键盘契约（提交/取消快捷键）        | 与代码预览评论共用同一份判定与文案                                             |
 | 计划 tab 的引用目标与来源标识            | `packages/ui/src/app-shell/PlanDetailSidePane.tsx`（按 tab 推导）              |
+| 选区入口的父会话阻塞判定                 | `packages/ui/src/lib/planApproval.ts` 的 `resolveSelectionInteractionBlocked`  |
 
 ## 失败语义
 
-| 情况                       | 表现                                                            |
-| -------------------------- | --------------------------------------------------------------- |
-| 选区超过单条上限           | 只显示上限提示，无「评论」入口                                  |
-| 评论为空或仅空白           | 提交后只有引文；引用对象与尾块 item 都没有 `comment` 键         |
-| 引用条数或总量超限         | 写入被拒，按既有 `limitReason` 给出 count/total 提示；草稿丢弃  |
-| 输入态中点击外部 / Esc     | 浮层关闭，输入区不新增 pill                                     |
-| 输入态中点击浮层空白处     | 焦点离开输入框但浮层保持打开，快捷键仍生效（键位挂在 document） |
-| 输入态中会话或作用域切换   | 浮层关闭，草稿不入队                                            |
-| 计划待确认且有评论时想批准 | 没有批准入口：先移除评论才能直接批准                            |
-| 计划确认提交失败或被拒     | 评论保留在该作用域，不清空                                      |
-| 旧版客户端读新版历史       | 严格键集解析失败 → 尾块原文进入气泡（仅外观，见「非目标」）     |
+| 情况                         | 表现                                                              |
+| ---------------------------- | ----------------------------------------------------------------- |
+| 选区超过单条上限             | 只显示上限提示，无「评论」入口                                    |
+| 评论为空或仅空白             | 提交后只有引文；引用对象与尾块 item 都没有 `comment` 键           |
+| 引用条数或总量超限           | 写入被拒，按既有 `limitReason` 给出 count/total 提示；草稿丢弃    |
+| 输入态中点击外部 / Esc       | 浮层关闭，输入区不新增 pill                                       |
+| 输入态中点击浮层空白处       | 焦点离开输入框但浮层保持打开，快捷键仍生效（键位挂在 document）   |
+| 输入态中会话或作用域切换     | 浮层关闭，草稿不入队                                              |
+| 计划待确认且有评论时想批准   | 没有批准入口：先移除评论才能直接批准                              |
+| 计划确认提交失败或被拒       | 评论保留在该作用域，不清空                                        |
+| 计划待确认（仅计划审批挂起） | 选区入口可用：辅助对话创建或复用，引用写入辅助对话输入区          |
+| 计划待确认且并存其他挂起交互 | 与第十节引入前一致：计划 tab / 预览禁用提问，会话时间线不出现菜单 |
+| 旧版客户端读新版历史         | 严格键集解析失败 → 尾块原文进入气泡（仅外观，见「非目标」）       |
 
 ## 非目标
 
@@ -162,6 +188,10 @@ pointerdown(评论) → preventDefault（保住选区）
 12. 暗色主题下打开评论浮层：引文、输入的文字与快捷键提示都清晰可读，不出现 UA 默认黑色文本；输入区没有占位提示行，输入框仍有可访问名称。
 13. 计划待确认时在计划 tab 评论：确认卡片列出这条评论，批准选项消失；不填理由直接提交 → 模型收到的用户消息是 `# userselect:` 尾块（含引文与评论），据此修订计划；提交后该评论从输入区消失，不会随下一条消息重复发送。
 14. 在确认卡片上移除评论 → 批准选项恢复，composer 重新出现时也没有该 pill；无评论时整套计划确认行为（批准、空答案自动批准、AskUserQuestion）与本节引入前一致。
+15. 计划待确认（该对话仅 `plan_approval` 挂起）时，计划 tab / 文件预览 / 会话正文选中文字，「在辅助对话中提问」都可点：侧栏创建或复用辅助对话，引用出现在辅助对话输入区，且不出现在计划确认卡片上（分属不同 session scope）。
+16. 计划待确认且同时存在权限请求或非计划审批的 `userInput`：三个表面维持既有禁用/隐藏与提示文案。
+17. 计划批准后选区入口行为与第十节引入前一致；辅助对话自身挂起交互时提问仍禁用（`chat.selections.sideBlocked`）。
+18. 计划 tab 选中一段文字后提问：辅助对话收到的 `# userselect:` item 同时含选段、计划文件路径（若有）与整份计划正文；辅助对话据此回答提问，不需要自己读文件，也不会说「这不是我上一轮说的」。同一份计划的正文只占它自己的 20,000 额度，不挤占选段预算；计划正文变化后再次引用同一片段不会被去重键判重之外的原因拒绝。
 
 ## 测试
 
@@ -172,4 +202,5 @@ pointerdown(评论) → preventDefault（保住选区）
 - 计划来源的纯函数（`resolvePlanSelectionSource`：身份不随正文漂移、标题回退链、无文件时不写 `path`）已作为常驻用例并入同一测试文件。
 - 计划确认的批准/反馈规则同样是纯函数（`packages/ui/src/lib/planApproval.ts`：有评论时收窄批准选项、把待发引用组装成反馈文本、有评论时批准值被改写），并入同一测试文件；卡片内的键盘路径（Tab/↑↓/Enter/Ctrl+Enter、空答案提交）与冻结清理依赖 React 渲染，按既有做法人工核对（场景 13/14）。
 - 引用变更广播（`conversation-selection-change`）的跨组件同步同样只能靠渲染验证：仓库没有 DOM 测试依赖，由场景 14 的人工核对覆盖。
+- 选区阻塞门禁同样是纯函数（`isPlanApprovalPendingInteraction` / `resolveSelectionInteractionBlocked`：`workspaceHookReview` 不计入、仅计划审批不阻塞、并存权限请求阻塞、普通 `userInput` 阻塞），并入同一测试文件；并用 `selectionSideChatRuntime` 的注册/请求链路断言「仅计划审批挂起时带引用的提问被放行、并存权限时被拒」。三个表面的可见/禁用表现按验收场景 15–17 人工核对。
 - 必须执行 `pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、`pnpm architecture:check --changed`，并如实报告结果。

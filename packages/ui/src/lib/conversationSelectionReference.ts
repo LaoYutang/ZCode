@@ -3,6 +3,11 @@ import { createUuid } from "@zcode/shared";
 export const CONVERSATION_SELECTION_MAX_TEXT_LENGTH = 8_000;
 const CONVERSATION_SELECTION_MAX_COUNT = 8;
 const CONVERSATION_SELECTION_MAX_TOTAL_LENGTH = 16_000;
+/**
+ * 计划正文另计一条总量：与 CLI 的 `PLAN_MODE_MAX_PLAN_CHARS` 对齐，单份计划不可能超过它。
+ * 不并入选段的 16,000：整份计划会直接撑爆既有额度，而选段与文档正文是两类上下文。
+ */
+const CONVERSATION_SELECTION_MAX_PLAN_TOTAL_LENGTH = 20_000;
 
 export type ConversationSelectionContentType = "user" | "assistant" | "reasoning" | "tool";
 
@@ -11,6 +16,11 @@ export interface ConversationSelectionText {
   path?: string;
   /** 用户对这段引文的补充说明；缺省与空串都表示「只引用，不评论」。 */
   comment?: string;
+  /**
+   * 引用所在文档的正文快照（计划 tab 携带整份计划）。模型不会主动按 `path` 去读文件，
+   * 只给路径时辅助对话只能照着 fork 历史作答；快照让上下文直接可见。
+   */
+  plan?: string;
 }
 
 export interface MessageSelectionReference extends ConversationSelectionText {
@@ -147,11 +157,17 @@ function getConversationSelectionDedupeKey(reference: ConversationSelectionRefer
 }
 
 // 单条上限仍只看引文正文（保持「单条引用最多 8,000 个字符」的语义）；
-// 总量预算必须把评论算进来，否则评论可以绕过 16,000 上限。
+// 总量预算必须把评论算进来，否则评论可以绕过 16,000 上限。plan 走独立总额度。
 function getConversationSelectionReferenceLength(
   reference: ConversationSelectionDisplayReference,
 ): number {
   return reference.text.length + (reference.comment?.length ?? 0);
+}
+
+function getConversationSelectionPlanLength(
+  reference: ConversationSelectionDisplayReference,
+): number {
+  return reference.plan?.length ?? 0;
 }
 
 function appendConversationSelectionReference(
@@ -178,6 +194,16 @@ function appendConversationSelectionReference(
   ) {
     return { ok: false, reason: "total" };
   }
+  const planTotalLength = current.reduce(
+    (sum, item) => sum + getConversationSelectionPlanLength(item),
+    0,
+  );
+  if (
+    planTotalLength + getConversationSelectionPlanLength(reference) >
+    CONVERSATION_SELECTION_MAX_PLAN_TOTAL_LENGTH
+  ) {
+    return { ok: false, reason: "total" };
+  }
   return { ok: true, references: [...current, reference], duplicate: false };
 }
 
@@ -186,17 +212,20 @@ export function buildPromptWithConversationSelections(
   references: readonly ConversationSelectionDisplayReference[],
 ): string {
   if (references.length === 0) return visibleContent;
-  // 文件选段曾只发正文，导致模型与历史丢失文件来源；只保留路径与可选评论，不发送内部身份字段。
+  // 文件选段曾只发正文，导致模型与历史丢失文件来源；只保留路径、评论与文档正文快照，
+  // 不发送内部身份字段。plan 是计划 tab 的正文快照，模型据此作答而不必自己读文件。
   const block = [
     "# userselect:",
     "```userselect",
     JSON.stringify(
-      references.map(({ text, path, comment }) => {
+      references.map(({ text, path, comment, plan }) => {
         const trimmedComment = comment?.trim();
-        if (path?.trim()) {
-          return trimmedComment ? { path, text, comment: trimmedComment } : { path, text };
-        }
-        return trimmedComment ? { text, comment: trimmedComment } : { text };
+        return {
+          ...(path?.trim() ? { path } : {}),
+          text,
+          ...(trimmedComment ? { comment: trimmedComment } : {}),
+          ...(plan ? { plan } : {}),
+        };
       }),
     ),
     "```",
@@ -212,10 +241,12 @@ export function parsePromptConversationSelections(text: string): {
   if (userSelectMatch) {
     return parseConversationSelectionBlock(text, userSelectMatch, (value) => {
       if (!isConversationSelectionText(value)) return null;
-      // 与发送合同一致，历史保留文件路径与评论，普通对话继续只恢复正文。
-      const display: ConversationSelectionDisplayReference = value.path
-        ? { path: value.path, text: value.text }
-        : { text: value.text };
+      // 与发送合同一致，历史保留文件路径、评论与文档正文快照，普通对话继续只恢复正文。
+      const display: ConversationSelectionDisplayReference = {
+        ...(value.path ? { path: value.path } : {}),
+        text: value.text,
+        ...(value.plan ? { plan: value.plan } : {}),
+      };
       return value.comment ? { ...display, comment: value.comment } : display;
     });
   }
@@ -293,7 +324,10 @@ function isConversationSelectionText(value: unknown): value is ConversationSelec
     (!("path" in value) ||
       (typeof candidate.path === "string" && candidate.path.trim().length > 0)) &&
     (!("comment" in value) || typeof candidate.comment === "string") &&
-    Object.keys(value).every((key) => key === "text" || key === "path" || key === "comment")
+    (!("plan" in value) || typeof candidate.plan === "string") &&
+    Object.keys(value).every(
+      (key) => key === "text" || key === "path" || key === "comment" || key === "plan",
+    )
   );
 }
 

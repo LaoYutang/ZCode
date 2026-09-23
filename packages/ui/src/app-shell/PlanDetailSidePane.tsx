@@ -95,6 +95,9 @@ const PlanDetailContent = memo(function PlanDetailContent({
         sourceKey={selectionSource.sourceKey}
         sourceTitle={selectionSource.sourceTitle}
         sourcePath={selectionSource.path}
+        // 计划正文常只存在于 ExitPlanMode 的工具输入里（planFilePath 可能为空），
+        // 引用随尾块带上正文快照，辅助对话不必自己按路径去读文件。
+        planText={markdown}
         target={selectionTarget}
       />
       <MessageResponse

@@ -1,3 +1,4 @@
+import type { PendingInteraction } from "@zcode/shared/zcode-protocol-v4";
 import {
   buildPromptWithConversationSelections,
   type ConversationSelectionDisplayReference,
@@ -32,4 +33,38 @@ export function resolvePlanApprovalFeedbackAnswer(
   const trimmed = answerText.trim();
   const visibleText = trimmed === PLAN_APPROVAL_APPROVE_VALUE ? "" : trimmed;
   return buildPromptWithConversationSelections(visibleText, references);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 计划审批的挂起交互：ExitPlanMode 的 v4 投影是 `userInput` + `schema.interaction === "plan_approval"`。
+ * 判据只取 `schema.interaction`，不依赖 `toolName`；legacy 权限卡片形态不在本判定的范围内。
+ */
+export function isPlanApprovalPendingInteraction(
+  interaction: Pick<PendingInteraction, "payload">,
+): boolean {
+  const payload = interaction.payload;
+  if (payload.kind !== "userInput") return false;
+  const { schema } = payload;
+  return isRecord(schema) && schema.interaction === "plan_approval";
+}
+
+/**
+ * 选区入口（评论 / 在辅助对话中提问）的父会话阻塞判定。
+ *
+ * 计划审批不算阻塞：待确认期间「看计划、就某段提问」正是要支持的场景，而选区提问的引用落点是
+ * 辅助对话的 scope（`targetSessionId = childSessionId`），不写父会话 composer，不影响审批答复语义。
+ * 权限请求与普通问答仍视为阻塞，保持既有门禁；`workspaceHookReview` 两种情况下都不计。
+ */
+export function resolveSelectionInteractionBlocked(
+  pendingInteractions: readonly PendingInteraction[],
+): boolean {
+  const blocking = pendingInteractions.filter(
+    (interaction) => interaction.payload.kind !== "workspaceHookReview",
+  );
+  if (blocking.length === 0) return false;
+  return !blocking.every(isPlanApprovalPendingInteraction);
 }
