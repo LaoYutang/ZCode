@@ -195,7 +195,6 @@ export function WorkspaceHeader({
           <div className="min-w-0 flex-1" aria-hidden="true" />
         )}
         <WorkspaceHeaderActionSection
-          variant={variant}
           readOnlyReason={readOnlyReason}
           workspaceAbsPath={workspaceAbsPath}
           workspaceIdentity={workspaceIdentity}

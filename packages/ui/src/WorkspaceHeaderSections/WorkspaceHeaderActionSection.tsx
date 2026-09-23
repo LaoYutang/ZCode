@@ -9,7 +9,6 @@ import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 export type { WorkspaceHeaderActionSectionProps } from "@/WorkspaceHeaderSections/shared.js";
 
 export function WorkspaceHeaderActionSection({
-  variant = "task",
   readOnlyReason,
   workspaceAbsPath,
   workspaceIdentity,
@@ -35,15 +34,14 @@ export function WorkspaceHeaderActionSection({
         useWindowsCaptionSpacing ? "-my-2 h-12 gap-0" : "gap-0.5",
       )}
     >
-      {variant === "task" ? (
-        <WorkspaceEditorButtonGroup
-          disabledReason={readOnlyReason}
-          workspaceAbsPath={workspaceAbsPath}
-          workspaceIdentity={workspaceIdentity}
-          remoteTarget={remoteTarget}
-          onSelectedEditorChange={onSelectedEditorChange}
-        />
-      ) : null}
+      {/* 打开工作区是工作区级动作，不依赖 task 作用域：草稿态（新建会话）与已有会话一律渲染。 */}
+      <WorkspaceEditorButtonGroup
+        disabledReason={readOnlyReason}
+        workspaceAbsPath={workspaceAbsPath}
+        workspaceIdentity={workspaceIdentity}
+        remoteTarget={remoteTarget}
+        onSelectedEditorChange={onSelectedEditorChange}
+      />
       {!simplifyForNarrowRemote ? (
         <>
           {!hideHelpMenu ? <WorkspaceHelpMenuButton isDesktop={Boolean(isDesktop)} /> : null}

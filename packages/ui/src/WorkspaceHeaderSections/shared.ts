@@ -55,7 +55,6 @@ export interface WorkspaceHeaderTitleSectionProps {
 }
 
 export interface WorkspaceHeaderActionSectionProps {
-  variant?: WorkspaceHeaderVariant;
   readOnlyReason?: string;
   workspaceAbsPath: string;
   workspaceIdentity?: string;
