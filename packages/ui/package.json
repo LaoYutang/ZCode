@@ -12,6 +12,7 @@
     "./replay": "./src/replay.ts"
   },
   "scripts": {
+    "test": "tsx --test test/*.test.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },

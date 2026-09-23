@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef } from "react";
+import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/components/lib/utils.js";
+import { useAnchoredPopupPosition } from "@/hooks/useAnchoredPopupPosition.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 // 问题原因：Markdown 曾复制一份固定宽度的竖排菜单，与对话流逐渐分叉。
@@ -12,7 +13,7 @@ export function SelectionActionMenu({
   singleLimit,
   sideActionDisabled,
   sideDisabledTitle,
-  onAddToCurrentTask,
+  onComment,
   onAskInSideChat,
 }: {
   center: number;
@@ -21,25 +22,12 @@ export function SelectionActionMenu({
   singleLimit?: boolean;
   sideActionDisabled?: boolean;
   sideDisabledTitle?: string;
-  onAddToCurrentTask: () => void;
+  onComment: () => void;
   onAskInSideChat: () => void;
 }) {
   const { intl, locale } = useZCodeIntl();
   const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const menu = ref.current;
-    if (!menu) return;
-    const position = () => {
-      const rect = menu.getBoundingClientRect();
-      menu.style.left = `${Math.max(12, Math.min(window.innerWidth - rect.width - 12, center - rect.width / 2))}px`;
-      const preferredTop = top - rect.height - 8 >= 12 ? top - rect.height - 8 : bottom + 8;
-      menu.style.top = `${Math.max(12, Math.min(window.innerHeight - rect.height - 12, preferredTop))}px`;
-    };
-    position();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(position);
-    observer?.observe(menu);
-    return () => observer?.disconnect();
-  }, [center, top, bottom, singleLimit, locale]);
+  useAnchoredPopupPosition(ref, { center, top, bottom, remeasureKey: locale });
   return createPortal(
     <div
       ref={ref}
@@ -62,11 +50,11 @@ export function SelectionActionMenu({
         <>
           <button
             type="button"
-            data-conversation-selection-action="add-to-task"
+            data-conversation-selection-action="comment"
             className="min-w-0 px-2.5 py-1.5 hover:bg-menu-hover"
-            onClick={onAddToCurrentTask}
+            onClick={onComment}
           >
-            {intl.formatMessage({ id: "chat.selections.addToTask" })}
+            {intl.formatMessage({ id: "chat.selections.comment" })}
           </button>
           <div className="w-px shrink-0 bg-border" />
           <button

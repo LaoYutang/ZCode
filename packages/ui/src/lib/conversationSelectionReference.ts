@@ -9,6 +9,8 @@ export type ConversationSelectionContentType = "user" | "assistant" | "reasoning
 export interface ConversationSelectionText {
   text: string;
   path?: string;
+  /** 用户对这段引文的补充说明；缺省与空串都表示「只引用，不评论」。 */
+  comment?: string;
 }
 
 export interface MessageSelectionReference extends ConversationSelectionText {
@@ -109,16 +111,26 @@ export function createConversationSelectionReference(
   return { ...input, id: createUuid() };
 }
 
+// 评论纳入去重键：同一句引文可以分别写两条不同评论，只有「同文同评论」才算重复添加。
 function getConversationSelectionDedupeKey(reference: ConversationSelectionReference): string {
   if (reference.contentType === "markdown") {
-    return ["markdown", reference.sourceKey, reference.text].join("\0");
+    return ["markdown", reference.sourceKey, reference.text, reference.comment ?? ""].join("\0");
   }
   return [
     reference.sourceSessionId,
     reference.sourceRowId,
     reference.contentType,
     reference.text,
+    reference.comment ?? "",
   ].join("\0");
+}
+
+// 单条上限仍只看引文正文（保持「单条引用最多 8,000 个字符」的语义）；
+// 总量预算必须把评论算进来，否则评论可以绕过 16,000 上限。
+function getConversationSelectionReferenceLength(
+  reference: ConversationSelectionDisplayReference,
+): number {
+  return reference.text.length + (reference.comment?.length ?? 0);
 }
 
 function appendConversationSelectionReference(
@@ -135,8 +147,14 @@ function appendConversationSelectionReference(
   if (current.length >= CONVERSATION_SELECTION_MAX_COUNT) {
     return { ok: false, reason: "count" };
   }
-  const totalLength = current.reduce((sum, item) => sum + item.text.length, 0);
-  if (totalLength + reference.text.length > CONVERSATION_SELECTION_MAX_TOTAL_LENGTH) {
+  const totalLength = current.reduce(
+    (sum, item) => sum + getConversationSelectionReferenceLength(item),
+    0,
+  );
+  if (
+    totalLength + getConversationSelectionReferenceLength(reference) >
+    CONVERSATION_SELECTION_MAX_TOTAL_LENGTH
+  ) {
     return { ok: false, reason: "total" };
   }
   return { ok: true, references: [...current, reference], duplicate: false };
@@ -147,11 +165,19 @@ export function buildPromptWithConversationSelections(
   references: readonly ConversationSelectionDisplayReference[],
 ): string {
   if (references.length === 0) return visibleContent;
-  // 文件选段曾只发正文，导致模型与历史丢失文件来源；只保留路径，不发送内部身份字段。
+  // 文件选段曾只发正文，导致模型与历史丢失文件来源；只保留路径与可选评论，不发送内部身份字段。
   const block = [
     "# userselect:",
     "```userselect",
-    JSON.stringify(references.map(({ text, path }) => (path?.trim() ? { path, text } : { text }))),
+    JSON.stringify(
+      references.map(({ text, path, comment }) => {
+        const trimmedComment = comment?.trim();
+        if (path?.trim()) {
+          return trimmedComment ? { path, text, comment: trimmedComment } : { path, text };
+        }
+        return trimmedComment ? { text, comment: trimmedComment } : { text };
+      }),
+    ),
     "```",
   ].join("\n");
   return visibleContent ? `${visibleContent}\n\n${block}` : block;
@@ -165,8 +191,11 @@ export function parsePromptConversationSelections(text: string): {
   if (userSelectMatch) {
     return parseConversationSelectionBlock(text, userSelectMatch, (value) => {
       if (!isConversationSelectionText(value)) return null;
-      // 与发送合同一致，历史保留文件路径，普通对话继续只恢复正文。
-      return value.path ? { path: value.path, text: value.text } : { text: value.text };
+      // 与发送合同一致，历史保留文件路径与评论，普通对话继续只恢复正文。
+      const display: ConversationSelectionDisplayReference = value.path
+        ? { path: value.path, text: value.text }
+        : { text: value.text };
+      return value.comment ? { ...display, comment: value.comment } : display;
     });
   }
   const legacyMatch = text.match(LEGACY_BLOCK_PATTERN);
@@ -240,7 +269,8 @@ function isConversationSelectionText(value: unknown): value is ConversationSelec
     typeof candidate.text === "string" &&
     (!("path" in value) ||
       (typeof candidate.path === "string" && candidate.path.trim().length > 0)) &&
-    Object.keys(value).every((key) => key === "text" || key === "path")
+    (!("comment" in value) || typeof candidate.comment === "string") &&
+    Object.keys(value).every((key) => key === "text" || key === "path" || key === "comment")
   );
 }
 

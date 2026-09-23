@@ -60,6 +60,11 @@ export function ConversationSelectionReferenceChip({
           <QuoteIcon className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
           <div className="min-w-0 flex-1">
             <div className="line-clamp-3 whitespace-pre-wrap break-words">{reference.text}</div>
+            {reference.comment?.trim() ? (
+              <div className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-ui-sm text-foreground-subtle">
+                {reference.comment}
+              </div>
+            ) : null}
             {reference.path || isConversationSelectionReference(reference) ? (
               <div className="mt-0.5 break-words text-ui-sm text-foreground-subtlest">
                 {reference.path ? (

@@ -1,6 +1,7 @@
 import { SelectionActionMenu } from "@/v4/SelectionActionMenu.js";
+import { SelectionCommentBox } from "@/v4/SelectionCommentBox.js";
 import { useTextSelection } from "@/hooks/useTextSelection.js";
-import { useCallback, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -19,6 +20,14 @@ interface TooltipState {
   top: number;
   reference?: ConversationSelectionReference;
   error?: "single";
+}
+
+/** 输入态冻结的选区：浮层获焦后实时选区已失效，渲染只能依赖这份快照。 */
+interface CommentDraft {
+  center: number;
+  bottom: number;
+  top: number;
+  reference: ConversationSelectionReference;
 }
 
 const SELECTABLE_SELECTOR = "[data-conversation-selectable]";
@@ -115,12 +124,40 @@ export function ConversationSelectionTooltip({
       }),
     };
   }, [enabled, rootRef, sourceSessionId]);
+  const [commentDraft, setCommentDraft] = useState<CommentDraft | null>(null);
   const { state, close } = useTextSelection({
     rootRef,
-    enabled,
+    // 输入态停用实时监听：见 CommentDraft 注释，打字本身会让实时选区失效并卸掉浮层。
+    enabled: enabled && !commentDraft,
     inspect: inspectSelection,
     scopeKey: sourceSessionId,
   });
+  useEffect(() => {
+    setCommentDraft(null);
+  }, [enabled, sourceSessionId]);
+
+  if (commentDraft) {
+    return (
+      <SelectionCommentBox
+        anchor={commentDraft}
+        quotedText={commentDraft.reference.text}
+        onSubmit={(comment) => {
+          const trimmedComment = comment.trim();
+          onAddToCurrentTask(
+            trimmedComment
+              ? { ...commentDraft.reference, comment: trimmedComment }
+              : commentDraft.reference,
+          );
+          setCommentDraft(null);
+          close();
+        }}
+        onClose={() => {
+          setCommentDraft(null);
+          close();
+        }}
+      />
+    );
+  }
 
   if (!state) return null;
   return (
@@ -131,9 +168,14 @@ export function ConversationSelectionTooltip({
       singleLimit={Boolean(state.error)}
       sideActionDisabled={sideActionDisabled}
       sideDisabledTitle={intl.formatMessage({ id: "chat.selections.sideBlocked" })}
-      onAddToCurrentTask={() => {
-        if (state.reference) onAddToCurrentTask(state.reference);
-        close();
+      onComment={() => {
+        if (!state.reference) return;
+        setCommentDraft({
+          center: state.center,
+          top: state.top,
+          bottom: state.bottom,
+          reference: state.reference,
+        });
       }}
       onAskInSideChat={() => {
         if (state.reference) onAskInSideChat(state.reference);
