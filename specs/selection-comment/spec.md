@@ -66,6 +66,23 @@ pointerdown(评论) → preventDefault（保住选区）
 
 - pill 在引文正文下方显示评论（截断），与 `CodeCommentAttachmentChip` 的评论行同形，来源信息行不变。
 
+### 八、覆盖面：会话、文件预览与计划 tab
+
+三个选区表面共用同一入口、同一冻结规则与同一写路径，差异只在「引用目标」与来源标识：
+
+| 表面                      | 组件入口                                                   | 引用变体                                                      |
+| ------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
+| 会话时间线                | `ConversationSelectionTooltip`（行内 `toolCall` 行已可选） | `MessageSelectionReference`（带 sourceRowId/contentType）     |
+| 文件预览 markdown         | `MarkdownPreviewContent` 内的 `MarkdownSelectionTooltip`   | `MarkdownSelectionReference`（带 sourceKey/sourceTitle/path） |
+| 计划 tab（`plan-detail`） | `PlanDetailSidePane` 内新增的同一 tooltip                  | `MarkdownSelectionReference`（sourceKey 取计划身份）          |
+
+计划 tab 的目标与来源直接从 tab 自身推导，不额外透传：
+
+- `sessionId = tab.parentSessionId`。侧栏 tab 的可见性本身就按 `parentSessionId === 当前任务` 收窄（`getVisibleSidePaneTabsByScope`），因此引用必然落回计划所属的那条对话，不存在跨会话歧义。
+- `workspaceKey = buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity)`，与 composer 的 scope key 同源（均为 `workspaceIdentity?.trim() || workspacePath` 规则），保证 pill 出现在可见输入区而不是无人渲染的 scope。
+- `sourceKey = plan:<parentSessionId>:<toolCallId>`（稳定、可去重）；`sourceTitle` 依次取计划标题（`getPlanDirectoryTitle`）、计划文件标签（`getPlanFileLabel`）、兜底「计划」；`path = tab.planFilePath`（存在时发给模型，缺省则只发正文）。
+- 冻结范围键只随 `sourceKey`/`path` 变化，不随计划正文变化：计划正文来自 live 投影，流式期间每次增量都重建 scope 会把刚建立的选区快照丢掉。
+
 ## 唯一所有者
 
 | 事实                                     | 所有者                                                                         |
@@ -79,6 +96,7 @@ pointerdown(评论) → preventDefault（保住选区）
 | 浮层定位（动作菜单与评论框共用）         | `packages/ui/src/hooks/useAnchoredPopupPosition.ts`                            |
 | 入口、标签与禁用态                       | `packages/ui/src/v4/SelectionActionMenu.tsx` + i18n                            |
 | 评论的键盘契约（提交/取消快捷键）        | 与代码预览评论共用同一份判定与文案                                             |
+| 计划 tab 的引用目标与来源标识            | `packages/ui/src/app-shell/PlanDetailSidePane.tsx`（按 tab 推导）              |
 
 ## 失败语义
 
@@ -112,10 +130,14 @@ pointerdown(评论) → preventDefault（保住选区）
 7. 同一句引文写两条不同评论：两条 pill 并存；同文同评论重复添加不新增。
 8. 引文与评论合计超过总预算：被拒并给出既有「总计」提示。
 9. 回归：辅助对话入口行为不变；`/review` 与 `# Code comments:` 的序列化顺序不变。
+10. 从计划卡片点「查看完整计划」进入计划 tab：选中计划正文出现「评论」入口，提交后 pill 出现在**该计划所属对话**的输入区（而非其它对话），hover 可见引文、评论与计划来源。
+11. 计划 tab 与文件预览同时开着时，各自选区只触发自己表面的入口，互不串扰；切到别的对话后计划 tab 不可见（可见性由 `parentSessionId` 收窄，非本 spec 引入）。
 
 ## 测试
 
 - 纯函数（构建/解析/键校验/预算/去重/顺序）由 `packages/ui/test/conversationSelectionReference.test.mjs` 覆盖。`packages/ui` 此前没有可运行的测试入口，本次为其补 `test` script（`tsx --test test/*.test.mjs`），与 `packages/desktop` 的 `node --test test/*.test.mjs` 约定一致。
 - 交互已在 jsdom + 真实 React 渲染下验证过一轮，两个选区表面各一条链路：会话侧为单一「评论」入口、点击后自动聚焦与引文预览、输入态冻结（选区塌陷与 keyup 后浮层仍在）、Ctrl+Enter 提交后引用带评论写入 scope、点击外部关闭且不写入、空评论提交不写 `comment` 键、辅助对话入口不变；预览侧为同一入口、同一冻结、提交后产出带评论与路径的 markdown 引用。会话侧还用「选区塌陷会关闭动作菜单」作为反证，确认该环境确实能触发关闭路径而非空断言。该脚本依赖 `jsdom`，仓库当前没有 DOM 测试依赖，因此**未纳入仓库**（临时脚本已删除）；若团队接受引入 jsdom 作为 `packages/ui` 的 devDependency，可将其提升为常驻用例。
-- 真机交互仍按验收场景 1–6、9 在 `pnpm dev:desktop` 下人工核对（视觉、鼠标/触控命中、真实选区行为不在 DOM 替身覆盖范围内）；仓库不为此新增 E2E 框架。
+- 真机交互仍按验收场景 1–6、9–11 在 `pnpm dev:desktop` 下人工核对（视觉、鼠标/触控命中、真实选区行为不在 DOM 替身覆盖范围内）；仓库不为此新增 E2E 框架。
+- 计划 tab 的链路按与预览侧相同的方式验证过一轮（同一份临时 jsdom 脚本，已删除）：按 `PlanDetailSidePane` 的同一组表达式与同一批真实模块组装表面，断言单一「评论」入口、自动聚焦、输入态冻结，以及提交后写入**计划所属对话**（`parentSessionId` + identity 规则算出的 workspaceKey）的 markdown 引用带 `sourceKey`/标题/计划文件路径，且不落进其它对话的 scope。同一脚本还把计划表面与预览表面同时挂载，验证同一时刻只出现一个工具条、各自只写入自己的 `sourceKey`（场景 11）。计划页自身依赖会话投影（需要平台服务），因此该脚本不渲染真实 pane 组件，这一步由人工核对。
+- 计划来源的纯函数（`resolvePlanSelectionSource`：身份不随正文漂移、标题回退链、无文件时不写 `path`）已作为常驻用例并入同一测试文件。
 - 必须执行 `pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、`pnpm architecture:check --changed`，并如实报告结果。

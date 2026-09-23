@@ -101,3 +101,32 @@ export function getPlanDirectoryTitle(markdown: string): string | undefined {
 export function getPlanFileLabel(planFilePath?: string): string | undefined {
   return planFilePath ? getPathLeaf(planFilePath) : undefined;
 }
+
+interface PlanSelectionSource {
+  sourceKey: string;
+  sourceTitle: string;
+  path?: string;
+}
+
+/**
+ * 计划 tab 的选区来源标识。
+ *
+ * `sourceKey` 只由对话与工具调用决定，不随正文变化：计划正文来自 live 投影，
+ * 若把它算进身份，流式期间同一份计划会被拆成多个来源，去重与 pill key 都会漂。
+ */
+export function resolvePlanSelectionSource(options: {
+  parentSessionId: string;
+  toolCallId: string;
+  markdown: string;
+  planFilePath?: string;
+  fallbackTitle: string;
+}): PlanSelectionSource {
+  return {
+    sourceKey: `plan:${options.parentSessionId}:${options.toolCallId}`,
+    sourceTitle:
+      getPlanDirectoryTitle(options.markdown) ??
+      getPlanFileLabel(options.planFilePath) ??
+      options.fallbackTitle,
+    ...(options.planFilePath ? { path: options.planFilePath } : {}),
+  };
+}

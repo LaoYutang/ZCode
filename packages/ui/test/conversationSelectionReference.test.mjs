@@ -16,6 +16,7 @@ const {
 } = await import("../src/lib/conversationSelectionReference.ts");
 const { parseComposerPromptContexts, serializeComposerPromptContexts } =
   await import("../src/v4/composer/composerPromptContexts.ts");
+const { resolvePlanSelectionSource } = await import("../src/lib/planToolCall.ts");
 
 function parseBlockItem(prompt) {
   const match = /```userselect\n([\s\S]*?)\n```/.exec(prompt);
@@ -195,4 +196,47 @@ test("四类外部上下文一起序列化后，评论随引用无损解析", ()
   assert.equal(parsed.codeComments.length, 1);
   assert.equal(parsed.codeComments[0].comment, "代码评论");
   assert.equal(parsed.codeComments[0].selectedText, "const a = 1");
+});
+
+test("计划来源：身份只由对话与工具调用决定，不随正文漂移", () => {
+  const base = { parentSessionId: "s1", toolCallId: "t1", fallbackTitle: "计划" };
+  const streaming = resolvePlanSelectionSource({ ...base, markdown: "# 方案 A\n\n第一步" });
+  const finished = resolvePlanSelectionSource({
+    ...base,
+    markdown: "# 方案 A\n\n第一步\n\n第二步\n\n第三步",
+  });
+  assert.equal(streaming.sourceKey, "plan:s1:t1");
+  assert.equal(finished.sourceKey, streaming.sourceKey, "正文追加不应改变来源身份");
+  assert.notEqual(
+    resolvePlanSelectionSource({ ...base, toolCallId: "t2", markdown: "" }).sourceKey,
+    streaming.sourceKey,
+  );
+  assert.notEqual(
+    resolvePlanSelectionSource({ ...base, parentSessionId: "s2", markdown: "" }).sourceKey,
+    streaming.sourceKey,
+  );
+});
+
+test("计划来源：标题回退链与文件路径", () => {
+  const base = { parentSessionId: "s1", toolCallId: "t1", fallbackTitle: "计划" };
+  assert.equal(
+    resolvePlanSelectionSource({ ...base, markdown: "# 实现登录\n\n正文" }).sourceTitle,
+    "实现登录",
+  );
+  assert.equal(
+    resolvePlanSelectionSource({ ...base, markdown: "- 第一步\n- 第二步" }).sourceTitle,
+    "第一步",
+  );
+  assert.equal(
+    resolvePlanSelectionSource({ ...base, markdown: "   ", planFilePath: "/ws/plan.md" })
+      .sourceTitle,
+    "plan.md",
+  );
+  assert.equal(
+    resolvePlanSelectionSource({ ...base, markdown: "   ", planFilePath: "/ws/plan.md" }).path,
+    "/ws/plan.md",
+  );
+  const bare = resolvePlanSelectionSource({ ...base, markdown: "" });
+  assert.equal(bare.sourceTitle, "计划");
+  assert.equal("path" in bare, false, "没有计划文件时不应写入 path");
 });
