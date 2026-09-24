@@ -23,6 +23,7 @@
     "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts"
   },
   "scripts": {
+    "test": "tsx --test test/*.test.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },

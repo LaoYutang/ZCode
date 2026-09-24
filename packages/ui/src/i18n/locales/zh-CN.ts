@@ -3794,6 +3794,9 @@ const zhCN: Record<string, string> = {
     "还有 {count} 个子代理 · 在运行侧栏里列出全部",
   "chat.toolCall.workflow.timeline.roster.door.list": "还有 {count} 个子代理 · 在这里列出",
   "chat.toolCall.workflow.timeline.roster.door.fold": "还有 {count} 个子代理 · 收起",
+  // 门后名单末尾的那一行：被淘汰的子代理没有行，差额在这里说明。
+  "chat.toolCall.workflow.timeline.roster.unlisted.one": "另有 1 个子代理未列出",
+  "chat.toolCall.workflow.timeline.roster.unlisted.many": "另有 {count} 个子代理未列出",
   "chat.toolCall.workflow.timeline.ledge.earlier": "{count} 个更早的阶段已滚出视野",
   "chat.toolCall.workflow.timeline.ledge.later": "{count} 个更晚的阶段已滚出视野",
   "chat.toolCall.workflow.timeline.scrollbar": "时间线滚动位置",
@@ -4142,6 +4145,9 @@ const zhCN: Record<string, string> = {
   "chat.toolCall.workflow.run.usage.label": "用量",
   "chat.toolCall.workflow.run.usage.tokens": "{tokens} tokens",
   "chat.toolCall.workflow.run.usage.value": "{tokens} tokens · {steps} 步",
+  // 实例表撞界后卡与详情页各有的那一句：停的是每一步的**详情**，不是 run，
+  // 它上面那些计数已经把表外的实例算进来了。
+  "chat.toolCall.workflow.run.truncated": "仅展示 {shown}/{total} 步的详情",
   "chat.toolCall.workflow.run.cancel": "停止运行",
   "chat.toolCall.workflow.run.cancelling": "正在停止…",
   "chat.toolCall.workflow.run.cancelDisabled": "只有正在运行的工作流可以停止。",
@@ -4192,6 +4198,9 @@ const zhCN: Record<string, string> = {
     "将以新设置另起一次运行接着跑，已完成的步骤会保留。",
   "chat.toolCall.workflow.run.settings.consequence.errored":
     "将以新设置另起一次运行重试，已完成的步骤会保留。",
+  // 只改并发上限、而且运行正在跑：就地生效。
+  "chat.toolCall.workflow.run.settings.consequence.concurrencyLive":
+    "立即应用到当前运行，不会新起一次运行。",
   "chat.toolCall.workflow.run.settings.apply": "应用",
   "chat.toolCall.workflow.run.settings.applying": "应用中…",
   "chat.toolCall.workflow.run.settings.rejection.not_found": "这个运行不在本对话的记录里。",
@@ -4349,6 +4358,8 @@ const zhCN: Record<string, string> = {
     "等待 provider（{reason}）· {seconds}s 后重试",
   "chat.toolCall.workflow.run.event.nodeExecuting": "请求已发出",
   "chat.toolCall.workflow.run.event.concurrencyChanged": "并发 {previous} → {next}",
+  // 上一条是治理器在压共享桶；这一条是用户改了这次 run 自己的上限（就地生效，不另起一次运行）。
+  "chat.toolCall.workflow.run.event.runCapsChanged": "并发上限 {previous} → {next}",
   "chat.toolCall.workflow.run.throttle.reason.rateLimited": "限流",
   "chat.toolCall.workflow.run.throttle.reason.overloaded": "过载",
   "chat.toolCall.workflow.run.throttle.reason.offpeak": "闲时排队",

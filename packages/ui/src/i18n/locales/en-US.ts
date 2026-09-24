@@ -3983,6 +3983,9 @@ const enUS: Record<string, string> = {
     "{count} more subagents · list everyone in the run pane",
   "chat.toolCall.workflow.timeline.roster.door.list": "{count} more subagents · list them here",
   "chat.toolCall.workflow.timeline.roster.door.fold": "{count} more subagents · fold",
+  // 门后名单末尾的那一行：被淘汰的子代理没有行，差额在这里说明（本仓的轻量 intl 无 ICU 复数）。
+  "chat.toolCall.workflow.timeline.roster.unlisted.one": "1 more agent not listed",
+  "chat.toolCall.workflow.timeline.roster.unlisted.many": "{count} more agents not listed",
   "chat.toolCall.workflow.timeline.ledge.earlier": "{count} earlier phase(s), scrolled out of view",
   "chat.toolCall.workflow.timeline.ledge.later": "{count} later phase(s), scrolled out of view",
   "chat.toolCall.workflow.timeline.scrollbar": "Timeline scroll position",
@@ -4306,6 +4309,9 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.run.usage.label": "Usage",
   "chat.toolCall.workflow.run.usage.tokens": "{tokens} tokens",
   "chat.toolCall.workflow.run.usage.value": "{tokens} tokens · {steps} steps",
+  // 实例表撞界后卡与详情页各有的那一句：停的是每一步的**详情**，不是 run，
+  // 它上面那些计数已经把表外的实例算进来了。
+  "chat.toolCall.workflow.run.truncated": "Details shown for {shown} of {total} steps",
   "chat.toolCall.workflow.run.cancel": "Stop run",
   "chat.toolCall.workflow.run.cancelling": "Stopping…",
   "chat.toolCall.workflow.run.cancelDisabled": "Only a running workflow can be stopped.",
@@ -4358,6 +4364,9 @@ const enUS: Record<string, string> = {
     "Continues as a new run with these settings; finished steps are kept.",
   "chat.toolCall.workflow.run.settings.consequence.errored":
     "Retries as a new run with these settings; finished steps are kept.",
+  // 只改并发上限、而且运行正在跑：就地生效。
+  "chat.toolCall.workflow.run.settings.consequence.concurrencyLive":
+    "Applies to this run right away; no new run is started.",
   "chat.toolCall.workflow.run.settings.apply": "Apply",
   "chat.toolCall.workflow.run.settings.applying": "Applying…",
   "chat.toolCall.workflow.run.settings.rejection.not_found":
@@ -4494,6 +4503,8 @@ const enUS: Record<string, string> = {
     "Waiting for provider ({reason}) · retry in {seconds}s",
   "chat.toolCall.workflow.run.event.nodeExecuting": "Request sent",
   "chat.toolCall.workflow.run.event.concurrencyChanged": "Concurrency {previous} → {next}",
+  // 上一条是治理器在压共享桶；这一条是用户改了这次 run 自己的上限（就地生效，不另起一次运行）。
+  "chat.toolCall.workflow.run.event.runCapsChanged": "Concurrency limit {previous} → {next}",
   "chat.toolCall.workflow.run.throttle.reason.rateLimited": "rate limited",
   "chat.toolCall.workflow.run.throttle.reason.overloaded": "overloaded",
   "chat.toolCall.workflow.run.throttle.reason.offpeak": "off-peak queue",

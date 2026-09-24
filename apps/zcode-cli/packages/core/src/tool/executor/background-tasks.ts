@@ -1085,7 +1085,21 @@ function workflowTerminalNotificationStatus(
   }
 }
 
-/** `completedAt - startedAt`，两者齐备且差为非负有限数才置（否则整字段缺席）。 */
+/**
+ * 通知里的墙钟时长（完成卡的「时间」格）。
+ *
+ * 两个来源，取**大**者：
+ *   - 本世：`completedAt - startedAt`，结算它的这个进程自己看到的那一段；
+ *   - 整条 lineage 的活动时长：`activeDurationMs`，由端口从 journal 求和（resume 的每一世 +
+ *     沿 `resumedFrom` 的每个前驱），缺席即读不出。
+ *
+ * 只报本次启动的墙钟时长会漏掉之前的运行时间：修订与
+ * resume 各自重开一次进程内时钟，而那一世大半是缓存重放。取大而不是直接取 lineage，是为了守住
+ * 「永不少报本进程亲眼所见」：老 run 的事件早于本记账、journal 读面不在场时 `activeDurationMs`
+ * 缺席，退回本世；而 lineage 值正常总比本世大（它含本世）。
+ *
+ * 两个来源都读不出时整字段缺席（卡上写 `—`），不写 0。
+ */
 function workflowNotificationDurationMs(snapshot: BackgroundTaskSnapshot): number | undefined {
   const startedAt =
     "startedAt" in snapshot && snapshot.startedAt instanceof Date
@@ -1095,9 +1109,19 @@ function workflowNotificationDurationMs(snapshot: BackgroundTaskSnapshot): numbe
     "completedAt" in snapshot && snapshot.completedAt instanceof Date
       ? snapshot.completedAt.getTime()
       : undefined;
-  if (startedAt === undefined || completedAt === undefined) return undefined;
-  const durationMs = completedAt - startedAt;
-  return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : undefined;
+  const ownLifeMs =
+    startedAt === undefined || completedAt === undefined
+      ? undefined
+      : nonNegativeFinite(completedAt - startedAt);
+  const lineageMs =
+    "activeDurationMs" in snapshot ? nonNegativeFinite(snapshot.activeDurationMs) : undefined;
+  if (ownLifeMs === undefined) return lineageMs;
+  return lineageMs === undefined ? ownLifeMs : Math.max(ownLifeMs, lineageMs);
+}
+
+/** 非负有限数才算一个时长；其余（NaN / Infinity / 负数 / 非数）一律读作「说不出」。 */
+function nonNegativeFinite(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 /**

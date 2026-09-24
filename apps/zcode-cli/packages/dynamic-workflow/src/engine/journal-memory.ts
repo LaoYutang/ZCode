@@ -7,6 +7,7 @@
 
 import type {
   ActorRecord,
+  Caps,
   JournalStorePort,
   ListEventsOptions,
   NodeRecord,
@@ -82,6 +83,14 @@ export class InMemoryJournalStore implements JournalStorePort {
     const r = this.runs.get(runId);
     if (r === undefined) throw new Error(`journal: unknown run ${runId}`);
     r.spentTokens = spentTokens;
+  }
+
+  updateRunCaps(runId: string, caps: Caps): void {
+    const r = this.runs.get(runId);
+    if (r === undefined) throw new Error(`journal: unknown run ${runId}`);
+    // 深拷贝与其余写入同规（存储边界两侧不共享引用）：调用方手里的那份 caps 随后被换掉，
+    // 不该顺手改动已落库的行。
+    r.caps = clone(caps);
   }
 
   putActor(record: ActorRecord): void {
