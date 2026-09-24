@@ -12,6 +12,7 @@ import {
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import {
   buildLocalMediaPreviewUrl,
+  createDynamicWorkflowClientConfig,
   isProviderProvisioningAccountCredentialKey,
   type ProviderProvisioningTrigger,
 } from "@zcode/shared";
@@ -1733,6 +1734,12 @@ export function createLocalServices(options: {
       desktopContextPromptEnabled,
     }),
     onAutomationManualRunRequested: options?.onAutomationManualRunRequested,
+    // 动态工作流在本仓没有灰度通道（specs/workflow/no-gray-release.md）：取值原由官方
+    // configs.dynamicWorkflow 下发，随账号体系删除后无人提供，而 gate 在 provider 缺席时
+    // 恒 false，会让工作流工具面、内置 /workflow 与 dynamic-workflows 技能整体不露出。
+    // 这里由 Host 直接裁定启用，CLI 侧 workspace/updateDynamicWorkflowPolicy 随之放行。
+    resolveDynamicWorkflowClientConfig: async () =>
+      createDynamicWorkflowClientConfig("alwaysOn", "override"),
     // createLocalServices 虽然暴露了 reporter 注入点，旧装配却没有继续传给
     // ZCodeAgentProcessManager，导致 host 永远不向 main 上报 Agent spawn/exit，进程监控器
     // 因而看不到实际运行的 Agent，也无法验证只读到可写升级是否复用同一进程。
