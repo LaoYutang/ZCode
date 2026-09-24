@@ -12,6 +12,8 @@ import { querySessionUsageDetail } from "../dist/storage/session-store/repositor
 
 const PARENT = "sess_parent";
 const SUBAGENT = "sess_subagent_child";
+const WORKFLOW_CHILD = "sess_workflow_child";
+const NESTED_WORKFLOW_CHILD = "sess_nested_workflow_child";
 const SIDE_CHAT = "sess_selection_side_chat";
 
 function createDb() {
@@ -87,6 +89,21 @@ function seedDb() {
     parentId: PARENT,
     taskType: "subagent_child",
     title: "调研任务",
+  });
+  // 动态工作流的子代理与它的嵌套形态：类型分别是 workflow_child / nested_workflow_child，
+  // 不是 subagent_child。它们的消耗同样不记在父会话名下（见 script-workflow-child-runtime），
+  // 所以"子代理"那一块必须把三种类型都收进来。
+  insertSession(db, {
+    id: WORKFLOW_CHILD,
+    parentId: PARENT,
+    taskType: "workflow_child",
+    title: "工作流子代理",
+  });
+  insertSession(db, {
+    id: NESTED_WORKFLOW_CHILD,
+    parentId: PARENT,
+    taskType: "nested_workflow_child",
+    title: "嵌套工作流子代理",
   });
   insertSession(db, {
     id: SIDE_CHAT,
@@ -193,6 +210,29 @@ function seedDb() {
     inputTokens: 300,
     outputTokens: 100,
     computedTotalTokens: 400,
+  });
+  // 工作流子代理的请求：query_source 也是 workflow_child，与普通子代理一样带真实生成计时。
+  insertModelUsage(db, {
+    id: "wf1",
+    sessionId: WORKFLOW_CHILD,
+    querySource: "workflow_child",
+    status: "completed",
+    startedAt: 6200,
+    completedAt: 6300,
+    inputTokens: 700,
+    outputTokens: 100,
+    computedTotalTokens: 800,
+  });
+  insertModelUsage(db, {
+    id: "wf2",
+    sessionId: NESTED_WORKFLOW_CHILD,
+    querySource: "workflow_child",
+    status: "completed",
+    startedAt: 6500,
+    completedAt: 6600,
+    inputTokens: 180,
+    outputTokens: 20,
+    computedTotalTokens: 200,
   });
   // 侧边会话也有 parent_id 和用量：它属于"选择侧边会话"，不是子代理。
   insertModelUsage(db, {
@@ -304,15 +344,23 @@ test("工具调用按名称分组，且总数与分组可对账", async () => {
   assert.equal(detail.toolErrorCount, 1);
 });
 
-test("子代理只认 task_type=subagent_child，带用量的侧边会话不计入", async () => {
+test("子代理归属收三种子会话类型，带用量的侧边会话不计入", async () => {
   const db = seedDb();
   const detail = await querySessionUsageDetail(db, { sessionID: PARENT });
 
+  // 按 token 倒序：普通子代理、动态工作流子代理、嵌套工作流子代理。
+  // 工作流子代理的消耗不记在父会话名下，漏掉它的类型会让这部分用量在明细里彻底看不见。
   assert.deepEqual(
     detail.subagents.children.map((row) => [row.sessionId, row.totalTokens]),
-    [[SUBAGENT, 400]],
+    [
+      [WORKFLOW_CHILD, 800],
+      [SUBAGENT, 400],
+      [NESTED_WORKFLOW_CHILD, 200],
+    ],
   );
-  assert.equal(detail.subagents.totalTokens, 400);
+  assert.equal(detail.subagents.totalTokens, 1400);
+  // 侧边会话带 parent_id、用量也最大（629057），但它是 selection_side_chat，不是子代理。
+  assert.ok(detail.subagents.children.every((row) => row.sessionId !== SIDE_CHAT));
   // 子代理用量单独成块：不得混进本会话合计（否则同一笔消耗会被算两次）。
   assert.equal(detail.billed.totalTokens, 5405);
 });

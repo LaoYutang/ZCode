@@ -1134,8 +1134,12 @@ export interface SessionUsageToolRow {
 }
 
 /**
- * 一个子代理会话的用量。归属靠 `session.task_type = 'subagent_child'`：
- * 仅按 `parent_id` 会把"选择侧边会话"（`selection_side_chat`）等子会话算成子代理。
+ * 一个子代理会话的用量。归属靠 `session.task_type`：只按 `parent_id` 会把"选择侧边会话"
+ * （`selection_side_chat`）等子会话算成子代理。
+ *
+ * 收进来的类型是三种子会话：`subagent_child`（普通子代理）、`workflow_child`（动态工作流的
+ * 子代理）、`nested_workflow_child`（嵌套工作流里的子代理）。工作流子代理的消耗不记在父会话
+ * 名下，漏掉它们的类型会让这部分用量在明细里彻底看不见。
  */
 export interface SessionUsageSubagentRow {
   sessionId: SessionId;

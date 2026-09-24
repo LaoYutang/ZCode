@@ -872,6 +872,12 @@ export async function querySessionUsageDetail(
   // 子代理归属必须用 task_type：实测库里"选择侧边会话"（selection_side_chat）同样带 parent_id
   // 且消耗可观，只按 parent_id 关联会把它算成子代理。也不能只认 `sess_subagent_` id 前缀——
   // 该前缀与 task_type 的集合并不相等。
+  //
+  // 子会话有三种类型，都要收进来：普通子代理（`subagent_child`）、动态工作流的子代理
+  // （`workflow_child`，见 script-workflow-child-runtime）、以及嵌套工作流里的子代理
+  // （`nested_workflow_child`）。只认第一种时，工作流的子代理会从两个集合里一起消失——
+  // 它们不是父会话自己的请求（不进"会话合计"），也匹配不上这一行（不进"子代理合计"），
+  // 于是侧栏两行相加不再等于这个会话真正花掉的量。
   const childRows = db
     .prepare(
       `select
@@ -884,7 +890,7 @@ export async function querySessionUsageDetail(
        from session s
        join model_usage m on m.session_id = s.id
        where s.parent_id = ?
-         and s.task_type = 'subagent_child'
+         and s.task_type in ('subagent_child', 'workflow_child', 'nested_workflow_child')
          and m.status = 'completed'
        group by s.id
        order by totalTokens desc`,
