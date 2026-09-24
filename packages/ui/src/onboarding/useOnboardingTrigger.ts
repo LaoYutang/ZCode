@@ -13,9 +13,10 @@ import { logger } from "@/logger.js";
 export function useOnboardingTrigger(options: {
   onboardingRecord: ReturnType<typeof useOnboardingRecordService>;
   hasStoredOccupation: boolean;
+  loadDeviceMid: () => string;
   update: (patch: Partial<AppSettings>) => Promise<void>;
 }): [boolean | null, () => void] {
-  const { onboardingRecord, hasStoredOccupation } = options;
+  const { onboardingRecord, hasStoredOccupation, loadDeviceMid } = options;
   // null 表示异步判定中（触发判定改为按本地记录）。
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
   useEffect(() => {
@@ -36,7 +37,7 @@ export function useOnboardingTrigger(options: {
       }
     }, 3000);
     onboardingRecord
-      .shouldOnboard()
+      .shouldOnboard(loadDeviceMid())
       .then(
         (result) => {
           if (!cancelled) setNeedsOnboarding(result);
@@ -53,6 +54,6 @@ export function useOnboardingTrigger(options: {
     };
     // 不依赖 hasStoredOccupation（对应 settings?.onboardingOccupation）：保存成功会改写该字段，
     // 若记录写入失败会在当场重开引导；记录缺失导致的再次触发按约定留给下次启动。
-  }, [onboardingRecord]);
+  }, [onboardingRecord, loadDeviceMid]);
   return [needsOnboarding, () => setNeedsOnboarding(false)];
 }

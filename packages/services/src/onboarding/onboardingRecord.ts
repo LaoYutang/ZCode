@@ -1,4 +1,5 @@
 import type {
+  OnboardingDecision,
   OnboardingRecordEntry,
   OnboardingRecordEntryInput,
   OnboardingRecordFile,
@@ -21,8 +22,18 @@ export interface IOnboardingRecordService {
    * userId 由服务内部按当前登录态补全，调用方不传。
    */
   appendRecord(deviceMid: string, entry: OnboardingRecordEntryInput): Promise<void>;
-  /** 触发判定：当前用户（登录→userId；apikey/未登录→null）没有对应记录或文件不存在时为 true。 */
-  shouldOnboard(): Promise<boolean>;
+  /**
+   * 触发判定（规格见 specs/onboarding/spec.md）：
+   * 1. 当前 userId（本仓恒为 null）已有作答或决策 → false；
+   * 2. 否则本机已有任务（tasks-index 非空）→ 落一条 `existing_local_user` 决策并返回 false；
+   * 3. 否则 true。
+   */
+  shouldOnboard(deviceMid: string): Promise<boolean>;
+  /**
+   * 用户关闭引导时持久化 `dismissed` 决策，下次启动不再打扰。
+   * 已有作答时为空操作（作答是更强的信号）。写失败由调用方降级为 warn，不阻塞 UI。
+   */
+  dismissOnboarding(deviceMid: string): Promise<void>;
   /**
    * 登录认领：当前 userId 没有条目而存在匿名（null）条目时，把 null 条目移交给该 userId
    * （改写而非复制，避免同一引导行为产生双条目污染上传统计）。同一人"未登录答一次→登录"
@@ -56,6 +67,11 @@ export interface IOnboardingRecordService {
 /** 工厂入参：userId 解析注入。无登录态时不注入，记录中的 userId 为 null。 */
 export interface CreateOnboardingRecordServiceOptions {
   loadUserId?: () => Promise<string | null>;
+  /**
+   * 本机是否已有任务（tasks-index 非空）。用于「老用户不再引导」；
+   * 不注入时视为 false，判定退化到 v1 的纯记录规则。
+   */
+  hasExistingLocalTask?: () => Promise<boolean>;
 }
 
 export type OnboardingRecordServiceFactory = (
@@ -66,4 +82,9 @@ export const IOnboardingRecordService = createServiceDescriptor<IOnboardingRecor
   ServiceChannels.OnboardingRecord,
 );
 
-export type { OnboardingRecordEntry, OnboardingRecordEntryInput, OnboardingRecordFile };
+export type {
+  OnboardingDecision,
+  OnboardingRecordEntry,
+  OnboardingRecordEntryInput,
+  OnboardingRecordFile,
+};

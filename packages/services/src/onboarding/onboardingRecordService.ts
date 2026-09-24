@@ -1,6 +1,10 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { onboardingRecordFileSchema } from "@zcode/shared";
+import {
+  onboardingDecisionSchema,
+  onboardingRecordEntrySchema,
+  onboardingRecordFileSchema,
+} from "@zcode/shared";
 import { appSettingsOccupationEnum } from "@zcode/shared";
 import type {
   OnboardingRecordEntry,
@@ -51,6 +55,9 @@ export function createOnboardingRecordService(
 ): IOnboardingRecordService {
   // 无登录态时 userId 恒为 null；调用点不各自判空。
   const loadUserId = (): Promise<string | null> => options.loadUserId?.() ?? Promise.resolve(null);
+  // 未注入时视为「本机没有任务」，判定退化为纯记录规则（见 specs/onboarding/spec.md）。
+  const hasExistingLocalTask = (): Promise<boolean> =>
+    options.hasExistingLocalTask?.() ?? Promise.resolve(false);
   // 串行化写：引导保存与并发触发判定同时发生时不丢条目。
   let writeQueue: Promise<unknown> = Promise.resolve();
   const enqueueWrite = <T>(task: () => Promise<T>): Promise<T> => {
@@ -58,6 +65,17 @@ export function createOnboardingRecordService(
     writeQueue = queued.catch(() => {});
     return queued;
   };
+  // 新文件直接落 v2；v1 文件由 schema 读取时补齐 decisions（不写回，等业务写入自然升级）。
+  const createFile = (deviceMid: string): OnboardingRecordFile => ({
+    version: 2,
+    deviceMid,
+    entries: [],
+    decisions: [],
+  });
+  /** 作答与决策互斥：任一存在即表示该 userId 已有结论，不再引导。 */
+  const hasIdentityRecord = (file: OnboardingRecordFile, userId: string | null): boolean =>
+    file.entries.some((entry) => entry.userId === userId) ||
+    file.decisions.some((decision) => decision.userId === userId);
 
   return {
     async appendRecord(deviceMid: string, entry: OnboardingRecordEntryInput): Promise<void> {
@@ -80,7 +98,7 @@ export function createOnboardingRecordService(
           }
           file = existing;
         } else {
-          file = { version: 1, deviceMid, entries: [] };
+          file = createFile(deviceMid);
         }
         const record: OnboardingRecordEntry = {
           userId,
@@ -90,9 +108,11 @@ export function createOnboardingRecordService(
         // 每 userId（含 null）至多一条：同一用户重复完成引导（debug 重置后再答等）覆盖旧条目，
         // 而不是追加——覆盖后的新答案重新置 pending，等待上传。
         const previousIndex = file.entries.findIndex((item) => item.userId === userId);
-        const validated = onboardingRecordFileSchema.shape.entries.element.parse(record);
+        const validated = onboardingRecordEntrySchema.parse(record);
         if (previousIndex >= 0) file.entries[previousIndex] = validated;
         else file.entries.push(validated);
+        // 作答是比决策更强的信号：一旦作答，之前的"关闭过/老用户"结论被覆盖。
+        file.decisions = file.decisions.filter((decision) => decision.userId !== userId);
         await mkdir(join(filePath, ".."), { recursive: true });
         await atomicWriteText(filePath, JSON.stringify(file, null, 2));
       });
@@ -105,26 +125,72 @@ export function createOnboardingRecordService(
         const filePath = getRecordFile();
         const file = await readRecordFile(filePath);
         if (!file) return;
-        if (file.entries.some((entry) => entry.userId === userId)) return;
+        // 已有作答或决策都算"这一身份已被处理过"，认领是幂等空操作。
+        if (hasIdentityRecord(file, userId)) return;
         // 兼容旧版重复文件取最后一条 null；移交是改写，不保留匿名副本。
         for (let i = file.entries.length - 1; i >= 0; i -= 1) {
           if (file.entries[i]!.userId === null) {
-            file.entries[i] = onboardingRecordFileSchema.shape.entries.element.parse({
+            file.entries[i] = onboardingRecordEntrySchema.parse({
               ...file.entries[i]!,
               userId,
             });
-            break;
+            await atomicWriteText(filePath, JSON.stringify(file, null, 2));
+            return;
           }
         }
-        await atomicWriteText(filePath, JSON.stringify(file, null, 2));
+        // 没有匿名作答时，看匿名决策：认领它，避免同一台设备重复引导。
+        for (let i = file.decisions.length - 1; i >= 0; i -= 1) {
+          if (file.decisions[i]!.userId !== null) continue;
+          file.decisions[i] = onboardingDecisionSchema.parse({ ...file.decisions[i]!, userId });
+          await atomicWriteText(filePath, JSON.stringify(file, null, 2));
+          return;
+        }
       });
     },
 
-    async shouldOnboard(): Promise<boolean> {
+    async shouldOnboard(deviceMid: string): Promise<boolean> {
       const userId = await loadUserId();
       const file = await readRecordFile(getRecordFile());
-      if (!file) return true;
-      return !file.entries.some((entry) => entry.userId === userId);
+      if (file && hasIdentityRecord(file, userId)) return false;
+      if (!(await hasExistingLocalTask())) return true;
+      // 老用户（本机已有任务）也是显式结论：落决策后不再追问，避免每次启动都拦一次。
+      await enqueueWrite(async () => {
+        const filePath = getRecordFile();
+        const current = (await readRecordFile(filePath)) ?? createFile(deviceMid);
+        if (hasIdentityRecord(current, userId)) return;
+        current.decisions.push(
+          onboardingDecisionSchema.parse({
+            userId,
+            status: "existing_local_user",
+            reason: "existing_local_task",
+            decidedAt: new Date().toISOString(),
+          }),
+        );
+        await mkdir(join(filePath, ".."), { recursive: true });
+        await atomicWriteText(filePath, JSON.stringify(current, null, 2));
+      });
+      return false;
+    },
+
+    async dismissOnboarding(deviceMid: string): Promise<void> {
+      const userId = await loadUserId();
+      await enqueueWrite(async () => {
+        const filePath = getRecordFile();
+        const file = (await readRecordFile(filePath)) ?? createFile(deviceMid);
+        // 已有作答时关闭是空操作：作答优先，不能被一条决策顶掉。
+        if (file.entries.some((entry) => entry.userId === userId)) return;
+        const decision = onboardingDecisionSchema.parse({
+          userId,
+          status: "dismissed",
+          reason: "user_closed",
+          decidedAt: new Date().toISOString(),
+        });
+        const index = file.decisions.findIndex((item) => item.userId === userId);
+        if (index >= 0) file.decisions[index] = decision;
+        else file.decisions.push(decision);
+        await mkdir(join(filePath, ".."), { recursive: true });
+        await atomicWriteText(filePath, JSON.stringify(file, null, 2));
+      });
     },
 
     async getLatestEntry(): Promise<OnboardingRecordEntry | null> {
@@ -171,7 +237,7 @@ export function createOnboardingRecordService(
         if (!file) return;
         const index = file.entries.findLastIndex((entry) => entry.userId === userId);
         if (index < 0) return;
-        file.entries[index] = onboardingRecordFileSchema.shape.entries.element.parse({
+        file.entries[index] = onboardingRecordEntrySchema.parse({
           ...file.entries[index],
           ...patch,
         });

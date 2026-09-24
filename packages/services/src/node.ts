@@ -1256,7 +1256,13 @@ export function createLocalServices(options: {
     resolveZCodeEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
   });
   const systemService = createSystemService();
-  const onboardingRecordService = createOnboardingRecordService();
+  // 引导资格与任务列表共用同一份全局 tasks-index；repo 懒加载数据库，提前构造不会增加启动 I/O，
+  // 后续 session 的 syncer（下方 zcodeTaskIndexSyncer）继续复用这一实例。
+  const taskIndexRepo = new TaskIndexRepo();
+  const onboardingRecordService = createOnboardingRecordService({
+    // 本机已有任务的老用户不再被引导拦一次（见 specs/onboarding/spec.md）。
+    hasExistingLocalTask: async () => (await taskIndexRepo.listTaskMetas({})).length > 0,
+  });
   const providerConfigLog = createServiceLogger("provider-config");
   const clientConfigPlatform = resolveClientConfigPlatform();
   const providerConfigRuntime = createProviderConfigRuntime({
@@ -1895,7 +1901,7 @@ export function createLocalServices(options: {
   // mapServiceEvent 路径，导致 task_complete 永远不会写回 sqlite，侧边栏 spinner 不停。
   // 在 services 层装配一个共享的 taskIndexRepo + syncer，session 任意入口都会唤醒
   // shadow 订阅，把 runtime 终态收敛进 sqlite。
-  const taskIndexRepo = new TaskIndexRepo();
+  // （taskIndexRepo 的构造已提前到 onboarding 装配处，两处共用同一实例。）
   const zcodeTaskIndexSyncer = createZCodeTaskIndexSyncer({
     agentService: zcodeAgentService,
     taskIndexRepo,

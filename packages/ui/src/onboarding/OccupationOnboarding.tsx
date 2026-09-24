@@ -71,9 +71,11 @@ export function OccupationOnboarding({
   const savingRef = useRef(false);
   const [error, setError] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const loadDeviceMid = useCallback(() => platform.getDeviceId(), [platform]);
   const [needsOnboarding, markOnboarded] = useOnboardingTrigger({
     onboardingRecord,
     hasStoredOccupation: Boolean(settings?.onboardingOccupation),
+    loadDeviceMid,
     update,
   });
   const onboardingVisible = requested || (needsOnboarding === true && !dismissed);
@@ -96,7 +98,14 @@ export function OccupationOnboarding({
     setStep(0);
     setDismissed(true);
     setRequested(false);
-  }, [captureEnd, intl, setRequested]);
+    // 关闭是一次显式决策：落盘后下次启动不再打扰（已有作答时服务侧是空操作）。
+    // 写失败只降级为 warn——引导已经关掉了，不能因为记录写不进去把它重新弹出来。
+    if (onboardingRecord) {
+      void onboardingRecord.dismissOnboarding(platform.getDeviceId()).catch((cause: unknown) => {
+        logger.warn("[occupation-onboarding] 写入关闭决策失败", { error: String(cause) });
+      });
+    }
+  }, [captureEnd, intl, onboardingRecord, platform, setRequested]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (
