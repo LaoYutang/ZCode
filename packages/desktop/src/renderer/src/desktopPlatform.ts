@@ -86,6 +86,12 @@ export function createDesktopPlatform(options: {
       window.zcode.browserViewScreenshotSurfaceReady?.(payload),
     ...desktopBrowserPlatformBridge,
     onNewTask: (handler) => window.zcode.onNewTask(handler),
+    onShowAbout: (handler) => {
+      // 与 onOpenWorkspace 同一约定：升级后的旧窗口可能仍运行未暴露 onShowAbout 的 preload。
+      // renderer 侧 AboutDialogHost 在 RootShell 挂载时就订阅，直接调用会让整个应用启动即崩溃；
+      // 缺少该 bridge 时只降级为「关于」打不开，不影响其余界面。
+      return window.zcode.onShowAbout?.(handler) ?? (() => {});
+    },
     onOpenWorkspace: (handler) => {
       // 开发态或升级后的旧窗口可能仍运行未暴露 onOpenWorkspace 的 preload，
       // renderer 直接调用会在启动时崩溃。这里和 activateOrSetWorkspace 一样做兼容兜底，

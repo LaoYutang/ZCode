@@ -110,5 +110,17 @@
 
 - `pnpm typecheck`、`pnpm lint`：验证六个包内没有悬空引用。
 - `pnpm architecture:check --changed`：验证删除后没有跨层越界。
-- `packages/desktop/test/aboutDialogPayload.test.mjs`：覆盖展示事实构造（版本取值优先级、Apple Silicon 判定），用 `node --test` 运行。
+- `packages/desktop/test/aboutDialogPayload.test.mjs`：覆盖展示事实构造（版本取值优先级、Apple Silicon 判定），用 `tsx --test` 运行（与 `packages/ui` 一致：Node 原生 type stripping 不会把 `./x.js` 解析到 `./x.ts`，desktop 测试要导入依赖 `@zcode/shared` 的模块就必须走 tsx）。
+- `packages/ui/test/aboutDialogStore.test.mjs`：覆盖开合状态语义（重复触发不叠加、关闭后不残留）。
 - 打包验证：`pnpm bundle:desktop -- --os win --arch x64` 产出的安装包中不含 `resources/config/default.json`，且应用可正常启动进入主界面。
+
+## 已知缺口：desktop 的 main / preload / renderer 没有自动类型检查
+
+本次改动首次暴露了这个缺口，记录下来避免重复踩坑：
+
+`pnpm typecheck` 只构建到 `packages/desktop/tsconfig.host.json`，**不覆盖 `tsconfig.main.json` / `tsconfig.preload.json` / `tsconfig.renderer.json`**；生产构建（`run-production-build.mjs`）只跑 `tsup` 与 `vite build`，两者都不做类型检查。
+
+后果：新增一条 `IPlatformService` 方法时，如果漏改 renderer 侧的 `desktopPlatform.ts` 转发，**编译、类型检查、打包都不会失败**，只会在运行时炸成 `platform.<method> is not a function` —— 因为 `AboutDialogHost` 挂在 `RootShell` 上，表现是「应用启动即白屏/崩溃」而不是「关于打不开」。
+
+两道防线（本次已落）：`desktopPlatform.ts` 的转发按 `onOpenWorkspace` 的既有约定写成 `window.zcode.<method>?.(handler) ?? (() => {})`，旧 preload 只降级、不崩溃；新增平台方法时同时改 `shared/platform.ts`、`preload/index.ts`、`desktopPlatform.ts`、`web/main.tsx` 四处实现清单。
+
