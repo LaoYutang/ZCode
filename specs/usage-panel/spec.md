@@ -107,15 +107,15 @@
 
 ## 唯一所有者
 
-| 事实             | 所有者                                                           | 说明                                                                |
-| ---------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 会话用量事实     | CLI session store（`model_usage` / `turn_usage` / `tool_usage`） | host 侧无副本；一切聚合从 CLI 侧查询产生                            |
-| 会话用量聚合     | `usage.ts` 的 `querySessionUsageDetail`                          | 新增；唯一的会话级聚合实现                                          |
-| 该查询的对外契约 | `v4/conversation/usageDetail`                                    | 新增 method，结果 schema 是唯一形状定义                             |
-| 面板展示值       | `ConversationStatusPanel`                                        | **纯只读投影**：无草稿、无乐观层、不进 CommandInbox、不新增写入路径 |
-| 实时容量         | v4 会话投影                                                      | 面板不自己算、不另存副本；只当显示闸门的信号，不再渲染              |
-| 全局用量聚合     | `usage.ts` 的 `queryAppUsage`                                    | 设置 → 用量的唯一来源；今日分块也只由它产出                         |
-| 全局用量对外契约 | `v4/usage/stats` 的 `appUsageSnapshotSchema`                     | 唯一形状定义；`today` 是新增的**可选**分块                          |
+| 事实             | 所有者                                                                     | 说明                                                                |
+| ---------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 会话用量事实     | CLI session store（`model_usage` / `turn_usage` / `tool_usage`）           | host 侧无副本；一切聚合从 CLI 侧查询产生                            |
+| 会话用量聚合     | `usage-session-query.ts` 的 `querySessionUsageDetail`（`usage.ts` 再导出） | 新增；唯一的会话级聚合实现                                          |
+| 该查询的对外契约 | `v4/conversation/usageDetail`                                              | 新增 method，结果 schema 是唯一形状定义                             |
+| 面板展示值       | `ConversationStatusPanel`                                                  | **纯只读投影**：无草稿、无乐观层、不进 CommandInbox、不新增写入路径 |
+| 实时容量         | v4 会话投影                                                                | 面板不自己算、不另存副本；只当显示闸门的信号，不再渲染              |
+| 全局用量聚合     | `usage-app-query.ts` 的 `queryAppUsage`（`usage.ts` 再导出）               | 设置 → 用量的唯一来源；今日分块也只由它产出                         |
+| 全局用量对外契约 | `v4/usage/stats` 的 `appUsageSnapshotSchema`                               | 唯一形状定义；`today` 是新增的**可选**分块                          |
 
 ## 迁移边界
 
