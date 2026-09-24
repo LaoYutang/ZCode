@@ -467,6 +467,10 @@ export const TID_WORKSPACE_MORE_BUTTON = "workspace-more-button";
 export const TID_WORKSPACE_HELP_MENU_TRIGGER = "workspace-help-menu-trigger";
 /** 问号帮助菜单里的「资源管理器」项（仅桌面端） */
 export const TID_WORKSPACE_HELP_MENU_RESOURCE_MANAGER = "workspace-help-menu-resource-manager";
+/** 「关于」对话框主体（renderer 内置 modal，不再是原生窗口） */
+export const TID_ABOUT_DIALOG = "about-dialog";
+/** 「关于」对话框的确定按钮 */
+export const TID_ABOUT_DIALOG_CONFIRM = "about-dialog-confirm";
 /** 侧边栏打开工作区文件树按钮（动态后缀为 workspacePath） */
 export const TID_WORKSPACE_FILE_TREE_BUTTON = "workspace-file-tree-button";
 /** 工作区文件树面板 */

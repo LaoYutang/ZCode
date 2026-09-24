@@ -147,6 +147,8 @@ function createWebPlatform(): IPlatformService {
     onOpenBrowserUrl: () => () => {},
     onNewTask: () => () => {},
     onOpenWorkspace: () => () => {},
+    // Web 端没有桌面命令入口，帮助菜单本身也不渲染（WorkspaceHelpMenuButton 在 !isDesktop 时返回 null）。
+    onShowAbout: () => () => {},
     onWindowFullscreenChanged: () => () => {},
     onTaskNotificationClick: () => () => {},
     exportLogs: () => Promise.resolve({ success: false, error: "Not supported in web mode" }),

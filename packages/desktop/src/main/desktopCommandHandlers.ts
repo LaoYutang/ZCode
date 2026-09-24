@@ -16,7 +16,7 @@ import {
   resolveZCodeEndpointOrigin,
 } from "@zcode/shared";
 import { readZCodeStdioTapDevState, setZCodeStdioTapDevEnabled } from "@zcode/services/node";
-import { showAboutDialog } from "./about.js";
+import { createAboutDialogPayload, readBuildMetadata } from "./about.js";
 import { checkForUpdateMenuClick } from "./autoUpdater.js";
 import { exportLogs } from "./exportLogs.js";
 import { openResourceManager } from "./resourceManagerWindow.js";
@@ -415,7 +415,16 @@ export async function executeDesktopCommand(options: {
       }
       return;
     case DesktopCommandIds.ShowAbout:
-      await showAboutDialog(targetWindow ?? undefined, options.currentApplicationLocale);
+      // 走 renderer 内置 modal：main 只算展示事实，不再创建原生窗口。
+      // 之前这里新建 frameless + transparent 的 BrowserWindow，Windows 上它是 layered 窗口，
+      // 创建与销毁都会让主窗口的 Acrylic 合成表面失效，整窗瞬间变透明露出后面的窗口。
+      targetWindow?.webContents.send(
+        PlatformChannels.ShowAbout,
+        createAboutDialogPayload({
+          appVersion: app.getVersion(),
+          buildMetadata: readBuildMetadata(),
+        }),
+      );
       return;
     case DesktopCommandIds.OpenChangelog:
       await openChangelog(

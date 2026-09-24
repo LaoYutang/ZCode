@@ -36,6 +36,15 @@ export type {
   UpdateStatePayload,
 } from "./update.js";
 
+/** 「关于」对话框的展示事实。
+ *  版本与平台信息只能在 main 进程读取（`app.getVersion()`、build-meta.json、`os.arch()`），
+ *  renderer 只负责渲染，因此经 `PlatformChannels.ShowAbout` 单向下发。 */
+export interface AboutDialogPayload {
+  appVersion: string;
+  /** 仅 macOS arm64 为 true：卡片上多一行「已针对 Apple Silicon 优化」。 */
+  isOptimizedForAppleSilicon: boolean;
+}
+
 export interface TaskNotificationPayload {
   taskId: string;
   status: "completed" | "failed" | "permission_request" | "elicitation_request" | "feedback_update";
@@ -744,6 +753,9 @@ export interface IPlatformService {
   onBrowserViewRestore?(
     handler: (payload: BrowserViewResidencyTransitionPayload) => void,
   ): () => void;
+
+  /** 注册 main 进程触发「关于」对话框的回调，返回 disposer */
+  onShowAbout(handler: (payload: AboutDialogPayload) => void): () => void;
 
   /** 注册 main 进程触发新建任务的回调，返回 disposer */
   onNewTask(handler: () => void): () => void;

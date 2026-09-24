@@ -903,6 +903,11 @@ const zhCN: Record<string, string> = {
   "titleBar.menu.view.zoomIn": "放大",
   "titleBar.menu.view.zoomOut": "缩小",
   "titleBar.menu.help.about": "关于 ZCode-Lite",
+  // 「关于」内置 modal 的文案。产品展示名与菜单项保持一致（specs/build/product-identity.md）。
+  "about.dialog.versionLabel": "版本",
+  "about.dialog.copyright": "版权所有 © {year} ZCode-Lite。",
+  "about.dialog.optimizedForAppleSilicon": "已针对 Apple Silicon 优化。",
+  "about.dialog.okButton": "确定",
   "titleBar.menu.help.checkForUpdates": "检查更新",
   "titleBar.menu.help.exportLogs": "导出日志",
   "titleBar.menu.help.toggleDevTools": "切换开发者工具",

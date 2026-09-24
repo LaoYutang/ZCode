@@ -28,6 +28,7 @@ function parseDeviceIdFromArgs(): string {
 contextBridge.exposeInMainWorld("__ZCODE_DEVICE_ID__", parseDeviceIdFromArgs());
 
 import type {
+  AboutDialogPayload,
   AppSettings,
   ApplicationIconRequest,
   BrowserViewOperationPayload,
@@ -464,6 +465,13 @@ contextBridge.exposeInMainWorld("zcode", {
       callback(payload);
     ipcRenderer.on(PlatformChannels.BrowserViewRestore, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.BrowserViewRestore, handler);
+  },
+  /** 注册 main 进程触发「关于」对话框的回调，返回 disposer。
+   *  这是一次性命令，不做 latest 回放：React 重挂载时不得重新打开已经关闭的对话框。 */
+  onShowAbout: (callback: (payload: AboutDialogPayload) => void): (() => void) => {
+    const handler = (_event: unknown, payload: AboutDialogPayload) => callback(payload);
+    ipcRenderer.on(PlatformChannels.ShowAbout, handler);
+    return () => ipcRenderer.removeListener(PlatformChannels.ShowAbout, handler);
   },
   /** 注册 main 进程触发新建任务的回调，返回 disposer */
   onNewTask: (callback: () => void): (() => void) => {

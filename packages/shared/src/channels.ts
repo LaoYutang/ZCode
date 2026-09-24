@@ -229,6 +229,8 @@ export const PlatformChannels = {
   OpenWorkspace: "zcode:open-workspace",
   /** Main → Renderer：deep link 直接打开指定本地工作区目录 */
   OpenWorkspacePath: "zcode:open-workspace-path",
+  /** Main → Renderer：菜单或托盘触发显示「关于」对话框（携带展示事实） */
+  ShowAbout: "zcode:show-about",
   /** Main → Renderer：窗口全屏状态变化 */
   WindowFullscreenChanged: "zcode:window-fullscreen-changed",
   /** Renderer → Main：读取窗口最大化状态与系统原生圆角能力 */

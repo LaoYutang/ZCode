@@ -1,16 +1,13 @@
-import type { BrowserWindow, MessageBoxReturnValue } from "electron";
 import { existsSync, readFileSync } from "node:fs";
 import { arch, hostname, platform, release, type, version as osVersion } from "node:os";
 import { join } from "node:path";
 import {
-  DEFAULT_LOCALE,
-  type Locale,
+  type AboutDialogPayload,
   ZCODE_BUILD_TIME,
   ZCODE_COMMIT,
   ZCODE_ENV,
   ZCODE_VERSION,
 } from "@zcode/shared";
-import { createCustomAboutDialogHtml } from "./aboutWindow.js";
 
 interface DesktopBuildMetadata {
   appVersion?: string;
@@ -52,37 +49,6 @@ interface AboutSnapshotOptions {
   };
 }
 
-const ABOUT_APPLICATION_NAME = "ZCode-Lite Desktop App";
-// 自定义 About 内容本体是 256x280；原生窗口如果同尺寸会让内容贴满透明窗口边界。
-// 这里给 BrowserWindow 额外留出背景呼吸空间，避免正式 About 看起来比 demo 更局促。
-const ABOUT_WINDOW_WIDTH = 256;
-const ABOUT_WINDOW_HEIGHT = 312;
-const ABOUT_MESSAGES: Record<
-  Locale,
-  {
-    aboutTitle: string;
-    versionLabel: string;
-    okButtonLabel: string;
-    optimizedForAppleSilicon: string;
-    copyright: (year: number) => string;
-  }
-> = {
-  "zh-CN": {
-    aboutTitle: "关于 ZCode-Lite",
-    versionLabel: "版本",
-    okButtonLabel: "确定",
-    optimizedForAppleSilicon: "已针对 Apple Silicon 优化。",
-    copyright: (year) => `版权所有 © ${year} ZCode-Lite。`,
-  },
-  "en-US": {
-    aboutTitle: "About ZCode-Lite",
-    versionLabel: "version",
-    okButtonLabel: "OK",
-    optimizedForAppleSilicon: "Optimized for Apple Silicon.",
-    copyright: (year) => `Copyright © ${year} ZCode-Lite.`,
-  },
-};
-
 function normalizeValue(value: string | undefined | null): string {
   if (typeof value !== "string") {
     return "unknown";
@@ -95,10 +61,6 @@ function normalizeValue(value: string | undefined | null): string {
 function normalizePackageVersion(version: string | undefined): string {
   const normalized = normalizeValue(version);
   return normalized === "unknown" ? normalized : normalized.replace(/^[^\d]*/, "") || normalized;
-}
-
-function getAboutMessages(locale: Locale): (typeof ABOUT_MESSAGES)[Locale] {
-  return ABOUT_MESSAGES[locale] ?? ABOUT_MESSAGES[DEFAULT_LOCALE];
 }
 
 function readJsonFile<T>(filePath: string): T | null {
@@ -190,79 +152,24 @@ export function formatAboutDetail(snapshot: AboutSnapshot): string {
   ].join("\n");
 }
 
-function formatAboutCopyright(
-  year = new Date().getFullYear(),
-  locale: Locale = DEFAULT_LOCALE,
-): string {
-  return getAboutMessages(locale).copyright(year);
-}
-
-function formatAboutOptimizationLine(
-  snapshot: Pick<AboutSnapshot, "osPlatform" | "osArch">,
-  locale: Locale = DEFAULT_LOCALE,
-): string {
-  if (snapshot.osPlatform === "darwin" && snapshot.osArch === "arm64") {
-    return getAboutMessages(locale).optimizedForAppleSilicon;
-  }
-
-  return "";
-}
-
-function resolveAboutIconPath(isPackaged: boolean): string {
-  return isPackaged
-    ? join(process.resourcesPath, "icon.png")
-    : join(import.meta.dirname, "../../build/icon.png");
-}
-
-export async function showAboutDialog(
-  parentWindow?: BrowserWindow,
-  locale: Locale = DEFAULT_LOCALE,
-): Promise<MessageBoxReturnValue> {
-  const { app, BrowserWindow } = await import("electron");
-  const snapshot = createAboutSnapshot({
-    appVersion: app.getVersion(),
-    buildMetadata: readBuildMetadata(),
-  });
-  const aboutMessages = getAboutMessages(locale);
-  // 之前只有 macOS 使用自绘 About，Windows/Linux 仍走原生 message box。
-  // 问题原因：各平台原生消息框的排版、图标和按钮样式差异很大，无法复用 macOS 参考样式。
-  // 这里统一使用自绘 modal，保证 About 的品牌展示和多语言文案在三端一致。
-  const iconPath = resolveAboutIconPath(app.isPackaged);
-  const aboutWindow = new BrowserWindow({
-    width: ABOUT_WINDOW_WIDTH,
-    height: ABOUT_WINDOW_HEIGHT,
-    parent: parentWindow && !parentWindow.isDestroyed() ? parentWindow : undefined,
-    modal: Boolean(parentWindow && !parentWindow.isDestroyed()),
-    frame: false,
-    transparent: true,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    show: false,
-    title: aboutMessages.aboutTitle,
-    icon: existsSync(iconPath) ? iconPath : undefined,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  aboutWindow.setMenuBarVisibility(false);
-  aboutWindow.once("ready-to-show", () => {
-    aboutWindow.show();
-  });
-  void aboutWindow.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(
-      createCustomAboutDialogHtml({
-        applicationName: ABOUT_APPLICATION_NAME,
-        appVersion: snapshot.appVersion,
-        copyright: formatAboutCopyright(undefined, locale),
-        optimizationLine: formatAboutOptimizationLine(snapshot, locale),
-        versionLabel: aboutMessages.versionLabel,
-        okButtonLabel: aboutMessages.okButtonLabel,
-      }),
-    )}`,
-  );
-  return { response: 0, checkboxChecked: false };
+/**
+ * 构造「关于」对话框的展示事实，由 renderer 的内置 modal 渲染。
+ *
+ * 之前这里是 `showAboutDialog`：main 进程新建一个 `transparent: true` 的 frameless
+ * BrowserWindow 加载 data URL。Windows 上那是 layered 窗口，它的创建与销毁会让主窗口的
+ * Acrylic 合成表面失效——主窗口底色是 `#00000000`，backdrop 一失效整窗就变全透明，
+ * 用户会看到 ZCode 后面的窗口。改为只产出数据、由 renderer 渲染内置 modal 后，
+ * 这条路径不再创建任何原生窗口。
+ *
+ * 版本取值优先级与 `createAboutSnapshot` 一致：调用方传入的 `app.getVersion()` →
+ * build-meta.json → 编译时常量 `ZCODE_VERSION`。
+ */
+export function createAboutDialogPayload(
+  options: AboutSnapshotOptions = {},
+): AboutDialogPayload {
+  const snapshot = createAboutSnapshot(options);
+  return {
+    appVersion: snapshot.appVersion,
+    isOptimizedForAppleSilicon: snapshot.osPlatform === "darwin" && snapshot.osArch === "arm64",
+  };
 }

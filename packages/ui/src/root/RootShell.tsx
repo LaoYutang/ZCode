@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AboutDialogHost } from "@/AboutDialog.js";
 import { AlertDialogHost } from "@/AlertDialogHost.js";
 import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 import { CuaPermissionObservationAttachment } from "@/cua-permission/CuaPermissionObservationAttachment.js";
@@ -12,6 +13,7 @@ export function RootShell({ children }: { children: ReactNode }) {
       <CuaPermissionObservationAttachment />
       <AlertDialogHost />
       <ConfirmDialogHost />
+      <AboutDialogHost />
     </div>
   );
 }
